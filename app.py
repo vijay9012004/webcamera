@@ -50,7 +50,7 @@ def play_alarm():
         st.session_state.alarm_played = False
 
 # ===============================
-# LIVE LOCATION
+# GOOGLE MAP
 # ===============================
 def get_live_location():
     components.html(
@@ -82,7 +82,7 @@ class DrowsinessProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess
+        # Preprocess frame
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
@@ -92,7 +92,7 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.confidence = float(np.max(pred)) * 100
         self.label = CLASSES[np.argmax(pred)]
 
-        # Drowsiness detection logic
+        # Drowsiness logic
         if self.label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
@@ -112,7 +112,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             self.start_time = None
             st.session_state.alarm_state = False
 
-        # Display class & confidence
+        # Display prediction class and confidence
         color = (0, 255, 0) if self.label == "notdrowsy" else (0, 165, 255)
         cv2.putText(
             img,
@@ -163,10 +163,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# LAYOUT
+# Layout columns
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
-# ---- CAMERA ----
+# ---- CAMERA PANEL ----
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera Detection</h3></div>", unsafe_allow_html=True)
     ctx = webrtc_streamer(
@@ -177,7 +177,7 @@ with col1:
         async_processing=True,
     )
 
-# ---- STATUS ----
+# ---- STATUS PANEL ----
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     if ctx.video_processor:
@@ -191,7 +191,7 @@ with col2:
         st.success("✅ DRIVER ALERT")
     st.info(f"⏱ Alert Trigger: {ALERT_TIME} Seconds")
 
-# ---- LOCATION ----
+# ---- LOCATION PANEL ----
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
