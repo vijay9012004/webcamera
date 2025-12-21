@@ -125,3 +125,76 @@ class DrowsinessProcessor(VideoProcessorBase):
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             color,
+            2
+        )
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+# ==========================================
+# STREAMLIT UI
+# ==========================================
+st.set_page_config(
+    page_title="Smart Driver Safety System",
+    page_icon="🚗",
+    layout="wide"
+)
+
+# HEADER
+st.markdown(
+    """
+    <style>
+    .header {
+        background: linear-gradient(90deg,#1e3c72,#2a5298);
+        padding:20px;
+        border-radius:15px;
+        color:white;
+        text-align:center;
+    }
+    .card {
+        background:white;
+        padding:15px;
+        border-radius:15px;
+        box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    }
+    </style>
+
+    <div class="header">
+        <h1>🚗 Smart Driver Drowsiness Detection</h1>
+        <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
+        <p>AI-based Real-Time Driver Safety Monitoring</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Layout columns
+col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
+
+# ---- CAMERA PANEL ----
+with col1:
+    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
+    webrtc_streamer(
+        key="drowsy-cam",
+        video_processor_factory=DrowsinessProcessor,
+        rtc_configuration=RTC_CONFIG,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+# ---- STATUS PANEL ----
+with col2:
+    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    if st.session_state.alarm_state:
+        st.error("🚨 DROWSINESS DETECTED")
+        play_alarm()
+    else:
+        st.success("✅ DRIVER ALERT")
+    st.info("⏱ Alert Trigger: 10 Seconds")
+
+# ---- LOCATION PANEL ----
+with col3:
+    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
+    get_live_location()
+
+st.markdown("---")
+st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
