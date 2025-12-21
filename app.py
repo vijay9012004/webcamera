@@ -54,22 +54,19 @@ class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
-        self.alerted = False  # flag to increment alert count only once per drowsy event
+        self.alerted = False
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
 
-        # Prediction
         pred = self.model.predict(input_data, verbose=0)
         label = CLASSES[np.argmax(pred)]
         confidence = float(np.max(pred)) * 100
 
-        # Drowsiness logic (5 seconds)
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
@@ -79,7 +76,6 @@ class DrowsinessProcessor(VideoProcessorBase):
                 if not self.alerted:
                     st.session_state.alert_count += 1
                     self.alerted = True
-                # Visual alert on video
                 cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
                 cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
@@ -88,7 +84,6 @@ class DrowsinessProcessor(VideoProcessorBase):
             st.session_state.alarm_state = False
             self.alerted = False
 
-        # Status overlay
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
         cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
@@ -118,6 +113,7 @@ st.markdown("""
 .button-link {
     text-decoration:none;
     color:white;
+    margin-right:5px;
 }
 </style>
 <div class="header">
@@ -149,36 +145,32 @@ with col1:
 
 # -------- Driver Status & Emergency --------
 with col2:
-    st.markdown("<div class='card'><h3>🚦 Driver Status & Emergency</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
         
         st.markdown("**Emergency Options:**")
+        cols = st.columns([1,1,1])
         
-        # Call Button
-        if st.button("📞 Call Emergency Number"):
-            st.write("Dialing +911234567890...")  # Works on mobile devices
+        with cols[0]:
+            if st.button("📞 Call Emergency"):
+                st.write("Dialing +911234567890...")
         
-        st.markdown("<br>", unsafe_allow_html=True)
+        with cols[1]:
+            if st.button("📧 Email Alert"):
+                st.markdown(
+                    "[Send Email](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)",
+                    unsafe_allow_html=True
+                )
         
-        # Email Button
-        if st.button("📧 Send Email Alert"):
-            st.markdown(
-                "[Click here to send Email](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)",
-                unsafe_allow_html=True
-            )
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Open Nearby Hotels Button
-        if st.button("🌐 Open Nearby Hotels"):
-            st.markdown(
-                "[Open Google Maps for Hotels](https://www.google.com/maps/search/hotels+near+me/)",
-                unsafe_allow_html=True
-            )
-            
+        with cols[2]:
+            if st.button("🏨 Nearby Hotels"):
+                st.markdown(
+                    "[Open Google Maps](https://www.google.com/maps/search/hotels+near+me/)",
+                    unsafe_allow_html=True
+                )
     else:
         st.success("✅ DRIVER ALERT")
     
