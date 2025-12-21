@@ -41,8 +41,6 @@ def get_live_location():
             let lon = pos.coords.longitude;
             document.getElementById("map").src =
               `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
-            window.lat = lat;
-            window.lon = lon;
         });
         </script>
         <iframe id="map" width="100%" height="220"
@@ -160,7 +158,6 @@ with col2:
             st.markdown("[📞 Call Emergency](tel:+911234567890)", unsafe_allow_html=True)
         
         with cols[1]:
-            # Dynamic location in email alert is not fully captured from browser in Streamlit
             st.markdown(
                 "[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near hotel location)",
                 unsafe_allow_html=True
