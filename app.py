@@ -9,7 +9,7 @@ import time
 import av
 import streamlit.components.v1 as components
 
-# CONFIGURATION
+# CONFIG
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
@@ -70,7 +70,7 @@ class DrowsinessProcessor(VideoProcessorBase):
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
-            if time.time() - self.start_time > 5:  # <-- Changed to 5 seconds
+            if time.time() - self.start_time > 5:
                 try:
                     st.session_state.alarm_state = True
                 except RuntimeError:
@@ -142,7 +142,7 @@ with col2:
         play_alarm()
     else:
         st.success("✅ DRIVER ALERT")
-    st.info("⏱ Alert Trigger: 5 Seconds")  # <-- Updated UI text
+    st.info("⏱ Alert Trigger: 5 Seconds")
 
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
