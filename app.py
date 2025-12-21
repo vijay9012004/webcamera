@@ -1,18 +1,11 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBase
-import cv2
-import numpy as np
+import cv2, os, av, requests, webbrowser, queue, time, gdown, numpy as np
 from keras.models import load_model
-import gdown
-import os
-import av
-import requests
-import webbrowser
-import time
 import streamlit.components.v1 as components
 
 # ================= CONFIG =================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"  # Google Drive model
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
@@ -25,17 +18,6 @@ if "drowsy_confidence" not in st.session_state: st.session_state.drowsy_confiden
 if "alarm_state" not in st.session_state: st.session_state.alarm_state = False
 if "danger_count" not in st.session_state: st.session_state.danger_count = 0
 if "webrtc_active" not in st.session_state: st.session_state.webrtc_active = False
-
-# ================= STYLES =================
-st.markdown("""
-<style>
-.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
-.card { background: rgba(255,255,255,0.08); padding:20px; border-radius:20px; backdrop-filter: blur(12px); margin-bottom: 20px; text-align:center; }
-.status-label { font-size:24px; font-weight:bold; margin-bottom:10px; }
-.footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
-h1,h2,h3,p,div { color:white; }
-</style>
-""", unsafe_allow_html=True)
 
 # ================= LOAD MODEL =================
 @st.cache_resource
@@ -74,19 +56,19 @@ def live_location():
 
 # ================= VIDEO PROCESSOR =================
 class DrowsinessProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.result_queue = queue.Queue()
+
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
-        x = cv2.resize(img,(224,224))/255.0
+        x = cv2.resize(img, (224,224))/255.0
         x = np.expand_dims(x, axis=0)
 
         if model:
             pred = model.predict(x, verbose=0)[0]
-            drowsy_prob = pred[1]
+            drowsy_prob = float(pred[1])
             label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
-
-            st.session_state.drowsy_status = "DROWSY" if label=="drowsy" else "NOT DROWSY"
-            st.session_state.drowsy_confidence = drowsy_prob*100
-            st.session_state.alarm_state = True if label=="drowsy" else False
+            self.result_queue.put({"prob": drowsy_prob, "label": label})
 
             if label=="drowsy":
                 cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
@@ -103,7 +85,7 @@ col1, col2, col3 = st.columns([2.5,1.5,1.5])
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
     if not st.session_state.webrtc_active:
-        webrtc_streamer(
+        ctx = webrtc_streamer(
             key="cam",
             video_processor_factory=DrowsinessProcessor,
             rtc_configuration=RTC_CONFIG,
@@ -113,15 +95,9 @@ with col1:
         st.session_state.webrtc_active = True
 
 # ----- STATUS PANEL -----
+status_placeholder = st.empty()
 with col2:
     st.markdown("<div class='card'><h3>📊 Driver Status</h3></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='status-label'>{st.session_state.drowsy_status} ({st.session_state.drowsy_confidence:.1f}%)</div>", unsafe_allow_html=True)
-
-    if st.session_state.alarm_state:
-        st.error("🚨 DROWSINESS DETECTED! Take a break.")
-    else:
-        st.success("✅ DRIVER ALERT")
-
     # AI Support Buttons
     st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
     if st.button("Nearby Hotels"):
@@ -130,7 +106,7 @@ with col2:
         st.session_state.danger_count += 1
         st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
 
-    # Weather Display
+    # Weather
     weather = get_weather()
     temp = weather['main']['temp']
     desc = weather['weather'][0]['description']
@@ -147,5 +123,19 @@ with col2:
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     live_location()
+
+# ====== POLL QUEUE AND UPDATE STATUS ======
+if st.session_state.webrtc_active:
+    processor = ctx.video_processor
+    if processor:
+        for _ in range(10):  # Poll queue a few times
+            try:
+                data = processor.result_queue.get_nowait()
+                st.session_state.drowsy_confidence = data["prob"]*100
+                st.session_state.drowsy_status = data["label"].upper()
+                st.session_state.alarm_state = True if data["label"]=="drowsy" else False
+            except queue.Empty:
+                break
+    status_placeholder.metric("Drowsiness Status", f"{st.session_state.drowsy_status}", f"{st.session_state.drowsy_confidence:.1f}%")
 
 st.markdown("<div class='footer'>Smart Driver System v1.0</div>", unsafe_allow_html=True)
