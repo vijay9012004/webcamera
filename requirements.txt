@@ -1,4 +1,5 @@
-streamlitstreamlit-webrtc
+streamlit 
+streamlit-webrtc
 opencv-python
 numpy
 keras
