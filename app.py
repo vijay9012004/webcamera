@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 import webbrowser
 
 # ===================== CONFIG =====================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"  # Google Drive model ID
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
@@ -90,7 +90,6 @@ class DrowsinessProcessor(VideoProcessorBase):
             st.session_state.drowsy_status = "DROWSY" if label=="drowsy" else "NOT DROWSY"
             st.session_state.drowsy_confidence = drowsy_prob*100
 
-            # Draw alert on frame
             if label=="drowsy":
                 cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
                 cv2.putText(img,"🚨 DROWSINESS ALERT",(40,140),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,255),3)
@@ -133,7 +132,7 @@ elif st.session_state.page=="main":
     st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
     col1,col2,col3=st.columns([2.5,1.5,1.5])
 
-    # Camera
+    # Live Camera
     with col1:
         st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
         if not st.session_state.webrtc_active:
@@ -149,14 +148,14 @@ elif st.session_state.page=="main":
     with col2:
         st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='status-label'>{st.session_state.drowsy_status} ({st.session_state.drowsy_confidence:.1f}%)</div>", unsafe_allow_html=True)
-        
-        # Quotes based on drowsiness
+
+        # Dynamic Quotes
         if st.session_state.drowsy_status=="DROWSY":
             st.markdown("<p>🚨 Alert: Your eyes are closing! Take a break.</p>", unsafe_allow_html=True)
         else:
             st.markdown("<p>😊 Keep driving safely! Stay alert.</p>", unsafe_allow_html=True)
 
-        # AI Buttons
+        # AI Support Buttons
         st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
         if st.button("Nearby Hotels"):
             webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
@@ -164,7 +163,7 @@ elif st.session_state.page=="main":
             st.session_state.danger_count += 1
             st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
 
-        # Weather
+        # Weather Display
         weather=get_weather()
         temp=weather['main']['temp']
         desc=weather['weather'][0]['description']
