@@ -48,18 +48,18 @@ class DrowsinessProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
 
-        # --- PREPROCESS (CORRECT) ---
+        # ---- CORRECT PREPROCESS ----
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         resized = cv2.resize(rgb, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
 
-        # --- PREDICT ---
+        # ---- PREDICT ----
         preds = self.model.predict(input_data, verbose=0)[0]
         notdrowsy_prob = preds[0]
         drowsy_prob = preds[1]
 
-        # --- DECISION ---
+        # ---- DECISION ----
         if drowsy_prob > 0.6:
             label = "DROWSY"
             color = (0, 0, 255)
@@ -69,7 +69,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             color = (0, 255, 0)
             st.session_state.alarm_state = False
 
-        # --- DISPLAY ---
+        # ---- DISPLAY ----
         cv2.putText(
             img,
             f"{label} | D:{drowsy_prob:.2f} ND:{notdrowsy_prob:.2f}",
@@ -102,7 +102,7 @@ def live_location():
     <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
     """, height=230)
 
-# ===================== PAGES =====================
+# ===================== UI =====================
 if st.session_state.page == "welcome":
     st.title("🚗 Happy Journey")
     if st.button("Continue ➡️"):
@@ -124,11 +124,13 @@ if st.session_state.page == "main":
         st.subheader("🖼️ Eye Reference")
         st.image(
             "https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/open_eye.jpg",
-            caption="👀 Open Eye → NOT DROWSY", width=200
+            caption="👀 Open Eye → NOT DROWSY",
+            width=200
         )
         st.image(
             "https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/closed_eye.jpg",
-            caption="😴 Closed Eye → DROWSY", width=200
+            caption="😴 Closed Eye → DROWSY",
+            width=200
         )
 
     with col2:
