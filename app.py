@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, webrtc_ctx
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import cv2, os, time, av, requests
 import numpy as np
 from keras.models import load_model
@@ -57,7 +57,7 @@ class DrowsinessProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
 
-        # ---- CORRECT PREPROCESS ----
+        # ---- PREPROCESS ----
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         resized = cv2.resize(rgb, (224, 224))
         normalized = resized.astype("float32") / 255.0
@@ -99,7 +99,7 @@ def get_weather():
     except:
         return None
 
-# ===================== MAP =====================
+# ===================== LIVE LOCATION =====================
 def live_location():
     components.html("""
     <script>
@@ -117,15 +117,19 @@ def play_alarm():
         st.audio("alarm.wav", loop=True)
 
 # ===================== PAGE ROUTING =====================
+# WELCOME PAGE
 if st.session_state.page == "welcome":
     st.title("🚗 Happy Journey")
-    if st.button("Continue ➡️"):
+    st.markdown("<p style='font-size:18px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
+    if st.button("➡️ Continue"):
         st.session_state.page = "main"
         st.experimental_rerun()
 
+# MAIN PAGE
 if st.session_state.page == "main":
     col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
+    # LIVE CAMERA
     with col1:
         st.subheader("🎥 Live Camera")
         try:
@@ -151,6 +155,7 @@ if st.session_state.page == "main":
             width=200
         )
 
+    # DRIVER STATUS
     with col2:
         st.subheader("🚦 Status")
         if st.session_state.alarm_state:
@@ -158,9 +163,9 @@ if st.session_state.page == "main":
             play_alarm()
         else:
             st.success("✅ DRIVER ALERT")
-
         st.markdown(f"**Alert Count:** {st.session_state.alert_count}")
 
+    # WEATHER
     with col3:
         st.subheader("🌦️ Weather")
         weather = get_weather()
@@ -172,6 +177,7 @@ if st.session_state.page == "main":
         else:
             st.warning("Weather unavailable")
 
+    # LIVE LOCATION
     st.subheader("📍 Live Location")
     live_location()
 
