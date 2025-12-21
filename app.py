@@ -91,12 +91,6 @@ def live_location():
     <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
     """, height=230)
 
-# ================= AI SUPPORT BUTTON =================
-def ai_support():
-    st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
-    if st.button("AI Support"):
-        webbrowser.open("https://gemini.google.com/apps")
-
 # ================= VIDEO PROCESSOR =================
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
@@ -146,9 +140,12 @@ try:
             ctx = None
 
     # ----- STATUS PANEL -----
+    status_placeholder = st.empty()
     with col2:
         st.markdown("<div class='card'><h3>📊 Driver Status</h3></div>", unsafe_allow_html=True)
-        ai_support()
+
+        if st.button("AI Support"):
+            webbrowser.open("https://gemini.google.com/apps")
         if st.button("Nearby Hotels"):
             webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
         if st.button("Report Danger"):
@@ -174,7 +171,6 @@ try:
 
     # ====== AUTO REFRESH ======
     st_autorefresh(interval=1000, key="driver_status_refresh")
-    status_placeholder = st.empty()
 
     # ====== REAL-TIME STATUS UPDATE ======
     if ctx and ctx.video_processor:
@@ -187,7 +183,6 @@ try:
         except queue.Empty:
             pass
 
-    # Display driver alert
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS ALERT! Take a break!")
     else:
@@ -201,3 +196,6 @@ try:
 
     st.markdown("<div class='footer'>Smart Driver System v2.0</div>", unsafe_allow_html=True)
 
+except Exception as e:
+    st.error(f"App crashed: {e}")
+    logging.error(e)
