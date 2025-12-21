@@ -12,6 +12,7 @@ FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
+
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
@@ -25,6 +26,7 @@ if "rule_index" not in st.session_state: st.session_state.rule_index = 0
 if "drowsy_status" not in st.session_state: st.session_state.drowsy_status = "Not detected"
 if "drowsy_confidence" not in st.session_state: st.session_state.drowsy_confidence = 0.0
 if "webrtc_active" not in st.session_state: st.session_state.webrtc_active = False
+if "danger_count" not in st.session_state: st.session_state.danger_count = 0
 
 # ===================== STYLES =====================
 st.markdown("""
@@ -34,6 +36,7 @@ st.markdown("""
 .status-label { font-size:24px; font-weight:bold; }
 .footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
 button.ai-btn { margin:5px; padding:5px 12px; border-radius:5px; background:#0f2027; color:white; border:1px solid #ccc; cursor:pointer; }
+h1, h2, h3, p, div { color: white; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -83,8 +86,11 @@ class DrowsinessProcessor(VideoProcessorBase):
             pred = model.predict(x, verbose=0)[0]
             drowsy_prob = pred[1]
             label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
+
             st.session_state.drowsy_status = "DROWSY" if label=="drowsy" else "NOT DROWSY"
             st.session_state.drowsy_confidence = drowsy_prob*100
+
+            # Draw alert on frame
             if label=="drowsy":
                 cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
                 cv2.putText(img,"🚨 DROWSINESS ALERT",(40,140),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,255),3)
@@ -139,23 +145,24 @@ elif st.session_state.page=="main":
             )
             st.session_state.webrtc_active = True
 
-    # Status, Quotes, Weather, and AI Buttons
+    # Status, Quotes, Weather, AI Support
     with col2:
         st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='status-label'>{st.session_state.drowsy_status} ({st.session_state.drowsy_confidence:.1f}%)</div>", unsafe_allow_html=True)
         
-        # Display quotes dynamically
+        # Quotes based on drowsiness
         if st.session_state.drowsy_status=="DROWSY":
             st.markdown("<p>🚨 Alert: Your eyes are closing! Take a break.</p>", unsafe_allow_html=True)
         else:
             st.markdown("<p>😊 Keep driving safely! Stay alert.</p>", unsafe_allow_html=True)
 
-        # AI Buttons for help
+        # AI Buttons
         st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
         if st.button("Nearby Hotels"):
             webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
         if st.button("Report Danger"):
-            st.markdown("<p>⚠️ Danger reported to AI system!</p>", unsafe_allow_html=True)
+            st.session_state.danger_count += 1
+            st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
 
         # Weather
         weather=get_weather()
