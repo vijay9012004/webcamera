@@ -3,6 +3,7 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfigurati
 import cv2
 import numpy as np
 from keras.models import load_model
+import gdown
 import os
 import time
 import av
@@ -11,9 +12,9 @@ import streamlit.components.v1 as components
 # ===============================
 # CONFIGURATION
 # ===============================
-MODEL_PATH = "driver_drowsiness.h5"  # Place your .h5 model in the same folder
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
+MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["drowsy", "notdrowsy"]
-ALERT_TIME = 2  # seconds before alarm triggers
 
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
@@ -25,11 +26,10 @@ RTC_CONFIG = RTCConfiguration(
 @st.cache_resource
 def get_model():
     if not os.path.exists(MODEL_PATH):
-        st.error(f"Model file not found at {MODEL_PATH}. Please add it.")
-        return None
+        url = f"https://drive.google.com/uc?id={FILE_ID}"
+        gdown.download(url, MODEL_PATH, quiet=False)
+        st.success("Model downloaded successfully!")
     return load_model(MODEL_PATH)
-
-model = get_model()
 
 # ===============================
 # ALARM SOUND
@@ -72,9 +72,11 @@ def get_live_location():
 # ===============================
 # VIDEO PROCESSOR
 # ===============================
+ALERT_TIME = 2  # seconds before alarm triggers
+
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
-        self.model = model
+        self.model = get_model()
         self.start_time = None
         self.label = "notdrowsy"
         self.confidence = 0.0
@@ -88,12 +90,11 @@ class DrowsinessProcessor(VideoProcessorBase):
         input_data = np.expand_dims(normalized, axis=0)
 
         # Prediction
-        if self.model:
-            pred = self.model.predict(input_data, verbose=0)
-            self.confidence = float(np.max(pred)) * 100
-            self.label = CLASSES[np.argmax(pred)]
+        pred = self.model.predict(input_data, verbose=0)
+        self.confidence = float(np.max(pred)) * 100
+        self.label = CLASSES[np.argmax(pred)]
 
-        # Drowsiness logic
+        # Drowsiness logic (ALERT_TIME seconds)
         if self.label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
@@ -119,7 +120,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             self.start_time = None
             st.session_state.alarm_state = False
 
-        # Display class and confidence
+        # Display prediction class and confidence
         color = (0, 255, 0) if self.label == "notdrowsy" else (0, 165, 255)
         cv2.putText(
             img,
@@ -136,7 +137,11 @@ class DrowsinessProcessor(VideoProcessorBase):
 # ===============================
 # STREAMLIT UI
 # ===============================
-st.set_page_config(page_title="Smart Driver Safety System", page_icon="🚗", layout="wide")
+st.set_page_config(
+    page_title="Smart Driver Safety System",
+    page_icon="🚗",
+    layout="wide"
+)
 
 # HEADER
 st.markdown(
@@ -169,7 +174,7 @@ st.markdown(
 # Layout columns
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
-# CAMERA PANEL
+# ---- CAMERA PANEL ----
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera Detection</h3></div>", unsafe_allow_html=True)
     ctx = webrtc_streamer(
@@ -180,7 +185,7 @@ with col1:
         async_processing=True,
     )
 
-# STATUS PANEL
+# ---- STATUS PANEL ----
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     if ctx.video_processor:
@@ -196,7 +201,7 @@ with col2:
         st.success("✅ DRIVER ALERT")
     st.info(f"⏱ Alert Trigger: {ALERT_TIME} Seconds")
 
-# LOCATION PANEL
+# ---- LOCATION PANEL ----
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
