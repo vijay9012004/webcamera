@@ -1,6 +1,10 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
-import cv2, os, time, av, requests
+import cv2
+import os
+import time
+import av
+import requests
 import numpy as np
 from keras.models import load_model
 import gdown
@@ -69,6 +73,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             label = "DROWSY"
             color = (0, 0, 255)
             st.session_state.alarm_state = True
+            st.session_state.alert_count += 1
         else:
             label = "NOT DROWSY"
             color = (0, 255, 0)
@@ -116,14 +121,27 @@ def play_alarm():
 if st.session_state.page == "welcome":
     st.title("🚗 Happy Journey")
     st.markdown("<p style='font-size:18px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
-    if st.button("➡️ Continue"):
-        st.session_state.page = "main"
-        st.experimental_rerun()  # Only called after button click
+    rules = [
+        "🌤️ Make sure you are well-rested before driving.",
+        "🕶️ If sleepy, take a short break and relax.",
+        "🚰 Stay hydrated while driving.",
+        "📵 Avoid distractions and focus on the road.",
+        "❤️ Safety matters more than reaching early."
+    ]
+    st.markdown(f"<div class='card'><h3>{rules[st.session_state.rule_index]}</h3></div>", unsafe_allow_html=True)
+    if st.session_state.rule_index < len(rules) - 1:
+        if st.button("Next ➡️"):
+            st.session_state.rule_index += 1
+            st.experimental_rerun()
+    else:
+        if st.button("🚗 Start Journey"):
+            st.session_state.page = "main"
+            st.experimental_rerun()
 
 # ===================== MAIN PAGE =====================
 if st.session_state.page == "main":
     st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([2.5,1.5,1.5])
+    col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
     # ---- LIVE CAMERA ----
     with col1:
@@ -135,11 +153,6 @@ if st.session_state.page == "main":
             media_stream_constraints={"video": True, "audio": False},
             async_processing=True
         )
-
-        st.subheader("🖼️ Eye Reference")
-        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/open_eye.jpg", caption="👀 Open Eye → NOT DROWSY", width=200)
-        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/closed_eye.jpg", caption="😴 Closed Eye → DROWSY", width=200)
-
         st.subheader("📍 Live Location")
         live_location()
 
@@ -152,6 +165,10 @@ if st.session_state.page == "main":
         else:
             st.success("✅ DRIVER ALERT")
         st.markdown(f"**Alert Count:** {st.session_state.alert_count}")
+        st.markdown("### 🎵 Play a Song")
+        song_file = st.file_uploader("Choose a song (mp3 / wav)", type=["mp3", "wav"])
+        if song_file:
+            st.audio(song_file)
 
     # ---- WEATHER ----
     with col3:
