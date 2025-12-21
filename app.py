@@ -115,36 +115,3 @@ class DrowsinessProcessor(VideoProcessorBase):
             (10, 40),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
-            color,
-            2
-        )
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# ==========================================
-# STREAMLIT UI
-# ==========================================
-st.set_page_config(
-    page_title="Smart Driver Safety System",
-    page_icon="🚗",
-    layout="wide"
-)
-
-st.markdown("""
-<style>
-.header {
-    background: linear-gradient(90deg,#1e3c72,#2a5298);
-    padding:20px;
-    border-radius:15px;
-    color:white;
-    text-align:center;
-}
-.card {
-    background:white;
-    padding:15px;
-    border-radius:15px;
-    box-shadow:0 4px 10px rgba(0,0,0,0.1);
-}
-</style>
-
-<div class="header">
