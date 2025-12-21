@@ -12,17 +12,13 @@ import streamlit.components.v1 as components
 # ==========================================
 # CONFIGURATION
 # ==========================================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"  # Replace with your model's Drive ID
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
-
-# Haar Cascade for face detection
-FACE_CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-face_cascade = cv2.CascadeClassifier(FACE_CASCADE_PATH)
 
 # ==========================================
 # LOAD MODEL
@@ -32,25 +28,14 @@ def get_model():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={FILE_ID}"
         gdown.download(url, MODEL_PATH, quiet=False)
-        st.success("Model downloaded successfully!")
     return load_model(MODEL_PATH)
 
 # ==========================================
 # ALARM SOUND
 # ==========================================
-if "alarm_state" not in st.session_state:
-    st.session_state.alarm_state = False
-if "alarm_played" not in st.session_state:
-    st.session_state.alarm_played = False
-
 def play_alarm():
-    if st.session_state.alarm_state and not st.session_state.alarm_played:
-        if os.path.exists("alarm.wav"):
-            with open("alarm.wav", "rb") as f:
-                st.audio(f.read(), format="audio/wav", loop=True)
-        st.session_state.alarm_played = True
-    elif not st.session_state.alarm_state:
-        st.session_state.alarm_played = False
+    if os.path.exists("alarm.wav"):
+        st.audio("alarm.wav", format="audio/wav")
 
 # ==========================================
 # GOOGLE MAP
@@ -62,6 +47,7 @@ def get_live_location():
         navigator.geolocation.watchPosition(function(pos) {
             let lat = pos.coords.latitude;
             let lon = pos.coords.longitude;
+
             document.getElementById("map").src =
               `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
         });
@@ -83,6 +69,112 @@ class DrowsinessProcessor(VideoProcessorBase):
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        faces = face_cascade.detec_
+        # Preprocess frame
+        resized = cv2.resize(img, (224, 224))
+        normalized = resized.astype("float32") / 255.0
+        input_data = np.expand_dims(normalized, axis=0)
+
+        # Prediction
+        pred = self.model.predict(input_data, verbose=0)
+        confidence = float(np.max(pred)) * 100
+        label = CLASSES[np.argmax(pred)]
+
+        # Drowsiness logic (10 seconds)
+        if label == "drowsy":
+            if self.start_time is None:
+                self.start_time = time.time()
+            if time.time() - self.start_time > 10:
+                try:
+                    st.session_state.alarm_state = True
+                except RuntimeError:
+                    pass
+                cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
+                cv2.putText(img, "DROWSINESS ALERT", (50, 150),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
+        else:
+            self.start_time = None
+            try:
+                st.session_state.alarm_state = False
+            except RuntimeError:
+                pass
+
+        # Status display
+        color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
+        cv2.putText(img, f"{label.upper()} ({confidence:.2f}%)", (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+# ==========================================
+# STREAMLIT UI
+# ==========================================
+st.set_page_config(
+    page_title="Smart Driver Safety System",
+    page_icon="🚗",
+    layout="wide"
+)
+
+# HEADER
+st.markdown(
+    """
+    <style>
+    .header {
+        background: linear-gradient(90deg,#1e3c72,#2a5298);
+        padding:20px;
+        border-radius:15px;
+        color:white;
+        text-align:center;
+    }
+    .card {
+        background:white;
+        padding:15px;
+        border-radius:15px;
+        box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    }
+    </style>
+
+    <div class="header">
+        <h1>🚗 Smart Driver Drowsiness Detection</h1>
+        <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
+        <p>AI-based Real-Time Driver Safety Monitoring</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Initialize alarm state
+if "alarm_state" not in st.session_state:
+    st.session_state.alarm_state = False
+
+# Layout columns
+col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
+
+# ---- CAMERA PANEL ----
+with col1:
+    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
+    webrtc_streamer(
+        key="drowsy-cam",
+        video_processor_factory=DrowsinessProcessor,
+        rtc_configuration=RTC_CONFIG,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+# ---- STATUS PANEL ----
+with col2:
+    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    if st.session_state.alarm_state:
+        st.error("🚨 DROWSINESS DETECTED")
+        play_alarm()
+    else:
+        st.success("✅ DRIVER ALERT")
+    st.info("⏱ Alert Trigger: 10 Seconds")
+
+# ---- LOCATION PANEL ----
+with col3:
+    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
+    get_live_location()
+
+st.markdown("---")
+st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
