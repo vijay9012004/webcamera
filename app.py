@@ -54,40 +54,39 @@ class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
-        self.alerted = False
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
+        # Preprocess
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
 
+        # Prediction
         pred = self.model.predict(input_data, verbose=0)
         label = CLASSES[np.argmax(pred)]
         confidence = float(np.max(pred)) * 100
 
+        # Drowsiness logic (5 seconds)
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
-                self.alerted = False
             if time.time() - self.start_time > 5:
                 st.session_state.alarm_state = True
-                if not self.alerted:
-                    st.session_state.alert_count += 1
-                    self.alerted = True
+                st.session_state.alert_count += 1
+                # Visual alert on video
                 cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
                 cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
         else:
             self.start_time = None
             st.session_state.alarm_state = False
-            self.alerted = False
 
+        # Status overlay
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
         cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== STREAMLIT UI =====================
@@ -113,7 +112,6 @@ st.markdown("""
 .button-link {
     text-decoration:none;
     color:white;
-    margin-right:5px;
 }
 </style>
 <div class="header">
@@ -129,7 +127,7 @@ if "alarm_state" not in st.session_state:
 if "alert_count" not in st.session_state:
     st.session_state.alert_count = 0
 
-# Layout columns
+# Layout
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
 # -------- Live Camera --------
@@ -146,28 +144,16 @@ with col1:
 # -------- Driver Status & Emergency --------
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
-    
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
-        
+        # Emergency Options
         st.markdown("**Emergency Options:**")
-        cols = st.columns([1,1,1])
-        
-        with cols[0]:
-            st.markdown("[📞 Call Emergency](tel:+911234567890)", unsafe_allow_html=True)
-        
-        with cols[1]:
-            st.markdown(
-                "[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near hotel location)",
-                unsafe_allow_html=True
-            )
-        
-        with cols[2]:
-            st.markdown("[🏨 Nearby Hotels](https://www.google.com/maps/search/hotels+near+me/)", unsafe_allow_html=True)
+        st.markdown("[📞 Call Emergency Number](tel:+911234567890)")
+        st.markdown("[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)")
+        st.markdown("[🌐 Open Nearby Hotel Location](https://www.google.com/maps/search/hotels+near+me/)")
     else:
         st.success("✅ DRIVER ALERT")
-    
     st.info("⏱ Alert Trigger: 5 Seconds")
     st.markdown(f"**Drowsiness Alerts Count:** {st.session_state.alert_count}")
 
@@ -176,6 +162,5 @@ with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
 
-# Footer
 st.markdown("---")
 st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC • Emergency Features Included")
