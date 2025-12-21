@@ -41,6 +41,8 @@ def get_live_location():
             let lon = pos.coords.longitude;
             document.getElementById("map").src =
               `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+            window.lat = lat;
+            window.lon = lon;
         });
         </script>
         <iframe id="map" width="100%" height="220"
@@ -155,22 +157,17 @@ with col2:
         cols = st.columns([1,1,1])
         
         with cols[0]:
-            if st.button("📞 Call Emergency"):
-                st.write("Dialing +911234567890...")
+            st.markdown("[📞 Call Emergency](tel:+911234567890)", unsafe_allow_html=True)
         
         with cols[1]:
-            if st.button("📧 Email Alert"):
-                st.markdown(
-                    "[Send Email](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)",
-                    unsafe_allow_html=True
-                )
+            # Dynamic location in email alert is not fully captured from browser in Streamlit
+            st.markdown(
+                "[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near hotel location)",
+                unsafe_allow_html=True
+            )
         
         with cols[2]:
-            if st.button("🏨 Nearby Hotels"):
-                st.markdown(
-                    "[Open Google Maps](https://www.google.com/maps/search/hotels+near+me/)",
-                    unsafe_allow_html=True
-                )
+            st.markdown("[🏨 Nearby Hotels](https://www.google.com/maps/search/hotels+near+me/)", unsafe_allow_html=True)
     else:
         st.success("✅ DRIVER ALERT")
     
