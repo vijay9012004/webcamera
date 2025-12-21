@@ -91,6 +91,12 @@ def live_location():
     <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
     """, height=230)
 
+# ================= AI SUPPORT BUTTON =================
+def ai_support():
+    st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
+    if st.button("AI Support"):
+        webbrowser.open("https://gemini.google.com/apps")
+
 # ================= VIDEO PROCESSOR =================
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
@@ -104,10 +110,7 @@ class DrowsinessProcessor(VideoProcessorBase):
 
             if model:
                 pred = model.predict(x, verbose=0)[0]
-                if len(pred) > 1:
-                    drowsy_prob = float(pred[1])
-                else:
-                    drowsy_prob = float(pred[0])
+                drowsy_prob = float(pred[1]) if len(pred) > 1 else float(pred[0])
                 label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
                 self.result_queue.put({"prob": drowsy_prob, "label": label})
 
@@ -117,7 +120,6 @@ class DrowsinessProcessor(VideoProcessorBase):
 
                 color = (0,255,0) if label=="notdrowsy" else (0,165,255)
                 cv2.putText(img, f"{label.upper()} ({drowsy_prob*100:.1f}%)", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
         except Exception as e:
             logging.error(f"Prediction error: {e}")
 
@@ -144,21 +146,15 @@ try:
             ctx = None
 
     # ----- STATUS PANEL -----
-    status_placeholder = st.empty()
     with col2:
         st.markdown("<div class='card'><h3>📊 Driver Status</h3></div>", unsafe_allow_html=True)
-
-        # AI Support Buttons
-        st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
-        if st.button("AI Support"):
-            webbrowser.open("https://gemini.google.com/apps")
+        ai_support()
         if st.button("Nearby Hotels"):
             webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
         if st.button("Report Danger"):
             st.session_state.danger_count += 1
             st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
 
-        # Weather
         weather = get_weather()
         temp = weather['main']['temp']
         desc = weather['weather'][0]['description']
@@ -176,8 +172,9 @@ try:
         st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
         live_location()
 
-    # ====== AUTO REFRESH EVERY SECOND ======
+    # ====== AUTO REFRESH ======
     st_autorefresh(interval=1000, key="driver_status_refresh")
+    status_placeholder = st.empty()
 
     # ====== REAL-TIME STATUS UPDATE ======
     if ctx and ctx.video_processor:
@@ -204,6 +201,3 @@ try:
 
     st.markdown("<div class='footer'>Smart Driver System v2.0</div>", unsafe_allow_html=True)
 
-except Exception as e:
-    st.error(f"App crashed: {e}")
-    logging.error(e)
