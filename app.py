@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
-WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
+WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"  # <-- Replace with your actual key
 
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
@@ -52,14 +52,26 @@ def load_model_data():
 
 # ===================== WEATHER =====================
 def get_weather():
+    """
+    Fetch weather from OpenWeatherMap.
+    If API key is missing or invalid, returns default weather info.
+    """
+    default_weather = {
+        "main": {"temp": 25},
+        "weather": [{"description": "Clear Sky", "icon": "01d"}]
+    }
+    if WEATHER_API_KEY == "YOUR_OPENWEATHER_API_KEY" or not WEATHER_API_KEY:
+        return default_weather  # fallback if key not set
+
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?q=Chennai&appid={WEATHER_API_KEY}&units=metric"
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             return response.json()
+        else:
+            return default_weather
     except:
-        pass
-    return None
+        return default_weather
 
 # ===================== GOOGLE MAP =====================
 def live_location():
@@ -162,19 +174,19 @@ if st.session_state.page=="main":
         st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
         st.markdown("<div style='color:#ccc;font-size:16px;'>Watch video feed for real-time alerts.</div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        weather=get_weather()
-        if weather:
-            temp=weather['main']['temp']
-            desc=weather['weather'][0]['description']
-            icon=weather['weather'][0]['icon']
-            st.markdown(f"""
-            <div class='card'>
-            <h4>🌤️ Weather</h4>
-            <p>{temp}°C | {desc.title()}</p>
-            <img src="http://openweathermap.org/img/wn/{icon}@2x.png" width="50">
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='card'><h4>🌤️ Weather</h4><p>Unavailable (Check API Key)</p></div>", unsafe_allow_html=True)
+
+        weather = get_weather()
+        temp = weather['main']['temp']
+        desc = weather['weather'][0]['description']
+        icon = weather['weather'][0]['icon']
+
+        st.markdown(f"""
+        <div class='card'>
+        <h4>🌤️ Weather</h4>
+        <p>{temp}°C | {desc.title()}</p>
+        <img src="http://openweathermap.org/img/wn/{icon}@2x.png" width="50">
+        </div>
+        """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("<div class='card'><h3>📍 Location</h3></div>", unsafe_allow_html=True)
