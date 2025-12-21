@@ -80,21 +80,28 @@ class DrowsinessProcessor(VideoProcessorBase):
         img = frame.to_ndarray(format="bgr24")
         x = cv2.resize(img,(224,224))/255.0
         x = np.expand_dims(x,axis=0)
+
         if model:
             pred = model.predict(x, verbose=0)[0]
-            drowsy_prob = pred[1]
-            label = "drowsy" if drowsy_prob>0.5 else "notdrowsy"
+            drowsy_prob = pred[1]  # probability of eyes closed
+            label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
+
+            # Update status
             st.session_state.drowsy_status = "DROWSY" if label=="drowsy" else "NOT DROWSY"
             st.session_state.drowsy_confidence = drowsy_prob*100
+
+            # Visual alert
             if label=="drowsy":
                 cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
                 cv2.putText(img,"🚨 DROWSINESS ALERT",(40,140),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,255),3)
+
             color=(0,255,0) if label=="notdrowsy" else (0,165,255)
             cv2.putText(img,f"{label.upper()} ({drowsy_prob*100:.1f}%)",(10,40),cv2.FONT_HERSHEY_SIMPLEX,1,color,2)
         else:
             st.session_state.drowsy_status="MODEL NOT LOADED"
             st.session_state.drowsy_confidence=0
             cv2.putText(img,"Model not loaded",(10,40),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
+
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== PAGES =====================
@@ -140,11 +147,10 @@ elif st.session_state.page=="main":
             )
             st.session_state.webrtc_active = True
 
-    # Status
+    # Status & Weather
     with col2:
         st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='status-label'>{st.session_state.drowsy_status} ({st.session_state.drowsy_confidence:.1f}%)</div>", unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
         if st.session_state.drowsy_status=="DROWSY":
             st.image("https://i.imgur.com/8z7NxSb.png", width=80)
         else:
