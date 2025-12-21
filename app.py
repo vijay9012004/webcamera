@@ -1,11 +1,14 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBase
-import cv2, os, av, requests, webbrowser, queue, time, gdown, numpy as np
+import cv2
+import numpy as np
+import gdown, os, av, requests, webbrowser, queue
 from keras.models import load_model
 import streamlit.components.v1 as components
+import time
 
 # ================= CONFIG =================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"  # Google Drive model ID
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
@@ -13,11 +16,27 @@ WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
 RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
 # ================= SESSION STATE =================
-if "drowsy_status" not in st.session_state: st.session_state.drowsy_status = "Not detected"
-if "drowsy_confidence" not in st.session_state: st.session_state.drowsy_confidence = 0.0
-if "alarm_state" not in st.session_state: st.session_state.alarm_state = False
-if "danger_count" not in st.session_state: st.session_state.danger_count = 0
-if "webrtc_active" not in st.session_state: st.session_state.webrtc_active = False
+if "drowsy_status" not in st.session_state:
+    st.session_state.drowsy_status = "Not detected"
+if "drowsy_confidence" not in st.session_state:
+    st.session_state.drowsy_confidence = 0.0
+if "alarm_state" not in st.session_state:
+    st.session_state.alarm_state = False
+if "danger_count" not in st.session_state:
+    st.session_state.danger_count = 0
+if "webrtc_active" not in st.session_state:
+    st.session_state.webrtc_active = False
+
+# ================= STYLES =================
+st.markdown("""
+<style>
+.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
+.card { background: rgba(255,255,255,0.08); padding:20px; border-radius:20px; backdrop-filter: blur(12px); margin-bottom: 20px; text-align:center; }
+.status-label { font-size:24px; font-weight:bold; margin-bottom:10px; }
+.footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
+h1,h2,h3,p,div { color:white; }
+</style>
+""", unsafe_allow_html=True)
 
 # ================= LOAD MODEL =================
 @st.cache_resource
@@ -70,11 +89,12 @@ class DrowsinessProcessor(VideoProcessorBase):
             label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
             self.result_queue.put({"prob": drowsy_prob, "label": label})
 
-            if label=="drowsy":
-                cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
-                cv2.putText(img,"🚨 DROWSINESS ALERT",(40,140),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,255),3)
-            color=(0,255,0) if label=="notdrowsy" else (0,165,255)
-            cv2.putText(img,f"{label.upper()} ({drowsy_prob*100:.1f}%)",(10,40),cv2.FONT_HERSHEY_SIMPLEX,1,color,2)
+            if label == "drowsy":
+                cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
+                cv2.putText(img, "🚨 DROWSINESS ALERT", (40,140), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
+
+            color = (0,255,0) if label=="notdrowsy" else (0,165,255)
+            cv2.putText(img, f"{label.upper()} ({drowsy_prob*100:.1f}%)", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ================= FRONTEND =================
@@ -84,15 +104,14 @@ col1, col2, col3 = st.columns([2.5,1.5,1.5])
 # ----- CAMERA PANEL -----
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    if not st.session_state.webrtc_active:
-        ctx = webrtc_streamer(
-            key="cam",
-            video_processor_factory=DrowsinessProcessor,
-            rtc_configuration=RTC_CONFIG,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True
-        )
-        st.session_state.webrtc_active = True
+    ctx = webrtc_streamer(
+        key="cam",
+        video_processor_factory=DrowsinessProcessor,
+        rtc_configuration=RTC_CONFIG,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True
+    )
+    st.session_state.webrtc_active = True
 
 # ----- STATUS PANEL -----
 status_placeholder = st.empty()
@@ -106,7 +125,7 @@ with col2:
         st.session_state.danger_count += 1
         st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
 
-    # Weather
+    # Weather Display
     weather = get_weather()
     temp = weather['main']['temp']
     desc = weather['weather'][0]['description']
@@ -125,17 +144,21 @@ with col3:
     live_location()
 
 # ====== POLL QUEUE AND UPDATE STATUS ======
-if st.session_state.webrtc_active:
+if ctx and ctx.video_processor:
     processor = ctx.video_processor
-    if processor:
-        for _ in range(10):  # Poll queue a few times
-            try:
-                data = processor.result_queue.get_nowait()
-                st.session_state.drowsy_confidence = data["prob"]*100
-                st.session_state.drowsy_status = data["label"].upper()
-                st.session_state.alarm_state = True if data["label"]=="drowsy" else False
-            except queue.Empty:
-                break
-    status_placeholder.metric("Drowsiness Status", f"{st.session_state.drowsy_status}", f"{st.session_state.drowsy_confidence:.1f}%")
+    for _ in range(10):  # Poll queue a few times
+        try:
+            data = processor.result_queue.get_nowait()
+            st.session_state.drowsy_confidence = data["prob"]*100
+            st.session_state.drowsy_status = data["label"].upper()
+            st.session_state.alarm_state = True if data["label"]=="drowsy" else False
+        except queue.Empty:
+            break
+
+status_placeholder.metric(
+    "Drowsiness Status",
+    f"{st.session_state.drowsy_status}",
+    f"{st.session_state.drowsy_confidence:.1f}%"
+)
 
 st.markdown("<div class='footer'>Smart Driver System v1.0</div>", unsafe_allow_html=True)
