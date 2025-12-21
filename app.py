@@ -1,6 +1,13 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBase
-import cv2, os, av, requests, webbrowser, queue, gdown, numpy as np
+import cv2
+import os
+import av
+import requests
+import webbrowser
+import queue
+import gdown
+import numpy as np
 from keras.models import load_model
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
