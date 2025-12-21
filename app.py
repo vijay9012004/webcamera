@@ -54,6 +54,7 @@ class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
+        self.alerted = False  # flag to increment alert count only once per drowsy event
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
@@ -72,9 +73,12 @@ class DrowsinessProcessor(VideoProcessorBase):
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
+                self.alerted = False
             if time.time() - self.start_time > 5:
                 st.session_state.alarm_state = True
-                st.session_state.alert_count += 1
+                if not self.alerted:
+                    st.session_state.alert_count += 1
+                    self.alerted = True
                 # Visual alert on video
                 cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
                 cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
@@ -82,11 +86,13 @@ class DrowsinessProcessor(VideoProcessorBase):
         else:
             self.start_time = None
             st.session_state.alarm_state = False
+            self.alerted = False
 
         # Status overlay
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
         cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== STREAMLIT UI =====================
@@ -127,7 +133,7 @@ if "alarm_state" not in st.session_state:
 if "alert_count" not in st.session_state:
     st.session_state.alert_count = 0
 
-# Layout
+# Layout columns
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
 # -------- Live Camera --------
@@ -142,9 +148,8 @@ with col1:
     )
 
 # -------- Driver Status & Emergency --------
-# -------- Driver Status & Emergency --------
 with col2:
-    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h3>🚦 Driver Status & Emergency</h3></div>", unsafe_allow_html=True)
     
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
@@ -154,7 +159,9 @@ with col2:
         
         # Call Button
         if st.button("📞 Call Emergency Number"):
-            st.write("Dialing +911234567890...")  # This works on mobile devices
+            st.write("Dialing +911234567890...")  # Works on mobile devices
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # Email Button
         if st.button("📧 Send Email Alert"):
@@ -162,6 +169,8 @@ with col2:
                 "[Click here to send Email](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)",
                 unsafe_allow_html=True
             )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # Open Nearby Hotels Button
         if st.button("🌐 Open Nearby Hotels"):
@@ -181,5 +190,6 @@ with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
 
+# Footer
 st.markdown("---")
 st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC • Emergency Features Included")
