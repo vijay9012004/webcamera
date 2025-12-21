@@ -54,11 +54,13 @@ class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
+        if "alert_count" not in st.session_state:
+            st.session_state.alert_count = 0
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess frame
+        # Preprocess
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
@@ -73,65 +75,59 @@ class DrowsinessProcessor(VideoProcessorBase):
             if self.start_time is None:
                 self.start_time = time.time()
             if time.time() - self.start_time > 5:
-                try:
-                    st.session_state.alarm_state = True
-                except RuntimeError:
-                    pass
+                st.session_state.alarm_state = True
+                st.session_state.alert_count += 1
                 cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
-                cv2.putText(img, "DROWSINESS ALERT", (50, 150),
+                cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
         else:
             self.start_time = None
-            try:
-                st.session_state.alarm_state = False
-            except RuntimeError:
-                pass
+            st.session_state.alarm_state = False
 
         # Status overlay
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
         cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== STREAMLIT UI =====================
 st.set_page_config(page_title="Smart Driver Safety System", page_icon="🚗", layout="wide")
 
 # Header
-st.markdown(
-    """
-    <style>
-    .header {
-        background: linear-gradient(90deg,#1e3c72,#2a5298);
-        padding:20px;
-        border-radius:15px;
-        color:white;
-        text-align:center;
-    }
-    .card {
-        background:white;
-        padding:15px;
-        border-radius:15px;
-        box-shadow:0 4px 10px rgba(0,0,0,0.1);
-    }
-    </style>
-    <div class="header">
-        <h1>🚗 Smart Driver Drowsiness Detection</h1>
-        <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
-        <p>AI-based Real-Time Driver Safety Monitoring</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<style>
+.header {
+    background: linear-gradient(90deg,#1e3c72,#2a5298);
+    padding:20px;
+    border-radius:15px;
+    color:white;
+    text-align:center;
+}
+.card {
+    background:white;
+    padding:15px;
+    border-radius:15px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    margin-bottom:15px;
+}
+</style>
+<div class="header">
+    <h1>🚗 Smart Driver Drowsiness Detection</h1>
+    <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
+    <p>AI-based Real-Time Driver Safety Monitoring</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Initialize alarm state
+# Initialize states
 if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
+if "alert_count" not in st.session_state:
+    st.session_state.alert_count = 0
 
 # Layout
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
-# Camera
+# -------- Live Camera --------
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
     webrtc_streamer(
@@ -142,7 +138,7 @@ with col1:
         async_processing=True,
     )
 
-# Status
+# -------- Driver Status --------
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     if st.session_state.alarm_state:
@@ -151,8 +147,15 @@ with col2:
     else:
         st.success("✅ DRIVER ALERT")
     st.info("⏱ Alert Trigger: 5 Seconds")
+    
+    # Alert history
+    st.markdown(f"**Drowsiness Alerts Count:** {st.session_state.alert_count}")
 
-# Location
+    # Confidence bar
+    confidence_val = st.session_state.get("last_confidence", 0)
+    st.progress(int(confidence_val))
+
+# -------- Live Location --------
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
