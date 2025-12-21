@@ -34,7 +34,6 @@ def get_model():
 # ==========================================
 # ALARM SOUND
 # ==========================================
-# Initialize alarm state
 if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
 if "alarm_played" not in st.session_state:
@@ -59,7 +58,6 @@ def get_live_location():
         navigator.geolocation.watchPosition(function(pos) {
             let lat = pos.coords.latitude;
             let lon = pos.coords.longitude;
-
             document.getElementById("map").src =
               `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
         });
@@ -127,38 +125,3 @@ class DrowsinessProcessor(VideoProcessorBase):
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             color,
-            2
-        )
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# ==========================================
-# STREAMLIT UI
-# ==========================================
-st.set_page_config(
-    page_title="Smart Driver Safety System",
-    page_icon="🚗",
-    layout="wide"
-)
-
-# HEADER
-st.markdown(
-    """
-    <style>
-    .header {
-        background: linear-gradient(90deg,#1e3c72,#2a5298);
-        padding:20px;
-        border-radius:15px;
-        color:white;
-        text-align:center;
-    }
-    .card {
-        background:white;
-        padding:15px;
-        border-radius:15px;
-        box-shadow:0 4px 10px rgba(0,0,0,0.1);
-    }
-    </style>
-
-    <div class="header">
-        <h1>🚗
