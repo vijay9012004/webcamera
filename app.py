@@ -28,6 +28,7 @@ def get_model():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={FILE_ID}"
         gdown.download(url, MODEL_PATH, quiet=False)
+        st.success("Model downloaded successfully!")
     return load_model(MODEL_PATH)
 
 # ==========================================
