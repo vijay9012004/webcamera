@@ -11,8 +11,12 @@ import numpy as np
 from keras.models import load_model
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
+import logging
 
-# ================= CONFIG =================
+# ================== LOGGING ==================
+logging.basicConfig(level=logging.DEBUG)
+
+# ================= CONFIG ==================
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
@@ -46,8 +50,18 @@ h1,h2,h3,p,div { color:white; }
 def load_model_data():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={FILE_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False)
-    return load_model(MODEL_PATH)
+        try:
+            gdown.download(url, MODEL_PATH, quiet=False)
+        except Exception as e:
+            st.error(f"Failed to download model: {e}")
+            logging.error(e)
+            return None
+    try:
+        return load_model(MODEL_PATH)
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        logging.error(e)
+        return None
 
 model = load_model_data()
 
@@ -62,7 +76,8 @@ def get_weather():
         if res.status_code == 200:
             return res.json()
         return default_weather
-    except:
+    except Exception as e:
+        logging.warning(f"Weather API failed: {e}")
         return default_weather
 
 # ================= LIVE LOCATION =================
@@ -87,93 +102,101 @@ class DrowsinessProcessor(VideoProcessorBase):
         x = np.expand_dims(x, axis=0)
 
         if model:
-            pred = model.predict(x, verbose=0)[0]
-            drowsy_prob = float(pred[1])
-            label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
-            self.result_queue.put({"prob": drowsy_prob, "label": label})
+            try:
+                pred = model.predict(x, verbose=0)[0]
+                drowsy_prob = float(pred[1])
+                label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
+                self.result_queue.put({"prob": drowsy_prob, "label": label})
 
-            # Overlay alert
-            if label == "drowsy":
-                cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
-                cv2.putText(img, "🚨 DROWSINESS ALERT", (40,140), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
+                # Overlay alert
+                if label == "drowsy":
+                    cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
+                    cv2.putText(img, "🚨 DROWSINESS ALERT", (40,140), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
 
-            color = (0,255,0) if label=="notdrowsy" else (0,165,255)
-            cv2.putText(img, f"{label.upper()} ({drowsy_prob*100:.1f}%)", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+                color = (0,255,0) if label=="notdrowsy" else (0,165,255)
+                cv2.putText(img, f"{label.upper()} ({drowsy_prob*100:.1f}%)", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            except Exception as e:
+                logging.error(f"Prediction error: {e}")
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ================= FRONTEND =================
-st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
-col1, col2, col3 = st.columns([2.5,1.5,1.5])
+try:
+    st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
-# ----- CAMERA PANEL -----
-with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    ctx = webrtc_streamer(
-        key="cam",
-        video_processor_factory=DrowsinessProcessor,
-        rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True
+    # ----- CAMERA PANEL -----
+    with col1:
+        st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
+        ctx = webrtc_streamer(
+            key="cam",
+            video_processor_factory=DrowsinessProcessor,
+            rtc_configuration=RTC_CONFIG,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True
+        )
+
+    # ----- STATUS PANEL -----
+    status_placeholder = st.empty()
+    with col2:
+        st.markdown("<div class='card'><h3>📊 Driver Status</h3></div>", unsafe_allow_html=True)
+
+        # AI Support Buttons
+        st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
+        if st.button("AI Support"):
+            webbrowser.open("https://gemini.google.com/apps")
+        if st.button("Nearby Hotels"):
+            webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
+        if st.button("Report Danger"):
+            st.session_state.danger_count += 1
+            st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
+
+        # Weather
+        weather = get_weather()
+        temp = weather['main']['temp']
+        desc = weather['weather'][0]['description']
+        icon = weather['weather'][0]['icon']
+        st.markdown(f"""
+        <div class='card'>
+        <h4>🌤️ Weather</h4>
+        <p>{temp}°C | {desc.title()}</p>
+        <img src="http://openweathermap.org/img/wn/{icon}@2x.png" width="50">
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ----- LOCATION PANEL -----
+    with col3:
+        st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
+        live_location()
+
+    # ====== AUTO REFRESH EVERY SECOND ======
+    st_autorefresh(interval=1000, key="driver_status_refresh")
+
+    # ====== REAL-TIME STATUS UPDATE ======
+    if ctx and ctx.video_processor:
+        processor = ctx.video_processor
+        try:
+            data = processor.result_queue.get_nowait()
+            st.session_state.drowsy_confidence = data["prob"]*100
+            st.session_state.drowsy_status = data["label"].upper()
+            st.session_state.alarm_state = True if data["label"]=="drowsy" else False
+        except queue.Empty:
+            pass
+
+    # Display driver alert
+    if st.session_state.alarm_state:
+        st.error("🚨 DROWSINESS ALERT! Take a break!")
+    else:
+        st.success("✅ DRIVER ALERT")
+
+    status_placeholder.metric(
+        "Drowsiness Status",
+        f"{st.session_state.drowsy_status}",
+        f"{st.session_state.drowsy_confidence:.1f}%"
     )
 
-# ----- STATUS PANEL -----
-status_placeholder = st.empty()
-with col2:
-    st.markdown("<div class='card'><h3>📊 Driver Status</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='footer'>Smart Driver System v2.0</div>", unsafe_allow_html=True)
 
-    # AI Support Buttons
-    st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
-    if st.button("AI Support"):
-        webbrowser.open("https://gemini.google.com/apps")
-    if st.button("Nearby Hotels"):
-        webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
-    if st.button("Report Danger"):
-        st.session_state.danger_count += 1
-        st.markdown(f"<p>⚠️ Danger reported! Total reports: {st.session_state.danger_count}</p>", unsafe_allow_html=True)
-
-    # Weather
-    weather = get_weather()
-    temp = weather['main']['temp']
-    desc = weather['weather'][0]['description']
-    icon = weather['weather'][0]['icon']
-    st.markdown(f"""
-    <div class='card'>
-    <h4>🌤️ Weather</h4>
-    <p>{temp}°C | {desc.title()}</p>
-    <img src="http://openweathermap.org/img/wn/{icon}@2x.png" width="50">
-    </div>
-    """, unsafe_allow_html=True)
-
-# ----- LOCATION PANEL -----
-with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    live_location()
-
-# ====== AUTO REFRESH EVERY SECOND ======
-st_autorefresh(interval=1000, key="driver_status_refresh")
-
-# ====== REAL-TIME STATUS UPDATE ======
-if ctx and ctx.video_processor:
-    processor = ctx.video_processor
-    try:
-        data = processor.result_queue.get_nowait()
-        st.session_state.drowsy_confidence = data["prob"]*100
-        st.session_state.drowsy_status = data["label"].upper()
-        st.session_state.alarm_state = True if data["label"]=="drowsy" else False
-    except queue.Empty:
-        pass
-
-# Display driver alert
-if st.session_state.alarm_state:
-    st.error("🚨 DROWSINESS ALERT! Take a break!")
-else:
-    st.success("✅ DRIVER ALERT")
-
-status_placeholder.metric(
-    "Drowsiness Status",
-    f"{st.session_state.drowsy_status}",
-    f"{st.session_state.drowsy_confidence:.1f}%"
-)
-
-st.markdown("<div class='footer'>Smart Driver System v2.0</div>", unsafe_allow_html=True)
+except Exception as e:
+    st.error(f"App crashed: {e}")
+    logging.error(e)
