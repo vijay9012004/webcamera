@@ -34,10 +34,20 @@ def get_model():
 # ==========================================
 # ALARM SOUND
 # ==========================================
+# Initialize alarm state
+if "alarm_state" not in st.session_state:
+    st.session_state.alarm_state = False
+if "alarm_played" not in st.session_state:
+    st.session_state.alarm_played = False
+
 def play_alarm():
-    if os.path.exists("alarm.wav"):
-        with open("alarm.wav", "rb") as f:
-            st.audio(f.read(), format="audio/wav", loop=True)
+    if st.session_state.alarm_state and not st.session_state.alarm_played:
+        if os.path.exists("alarm.wav"):
+            with open("alarm.wav", "rb") as f:
+                st.audio(f.read(), format="audio/wav", loop=True)
+        st.session_state.alarm_played = True
+    elif not st.session_state.alarm_state:
+        st.session_state.alarm_played = False
 
 # ==========================================
 # GOOGLE MAP
@@ -151,46 +161,4 @@ st.markdown(
     </style>
 
     <div class="header">
-        <h1>🚗 Smart Driver Drowsiness Detection</h1>
-        <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
-        <p>AI-based Real-Time Driver Safety Monitoring</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Initialize alarm state
-if "alarm_state" not in st.session_state:
-    st.session_state.alarm_state = False
-
-# Layout columns
-col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
-
-# ---- CAMERA PANEL ----
-with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    webrtc_streamer(
-        key="drowsy-cam",
-        video_processor_factory=DrowsinessProcessor,
-        rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
-
-# ---- STATUS PANEL ----
-with col2:
-    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
-    if st.session_state.alarm_state:
-        st.error("🚨 DROWSINESS DETECTED")
-        play_alarm()
-    else:
-        st.success("✅ DRIVER ALERT")
-    st.info("⏱ Alert Trigger: 10 Seconds")
-
-# ---- LOCATION PANEL ----
-with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    get_live_location()
-
-st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
+        <h1>🚗
