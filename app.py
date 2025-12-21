@@ -142,18 +142,37 @@ with col1:
     )
 
 # -------- Driver Status & Emergency --------
+# -------- Driver Status & Emergency --------
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
-        # Emergency Options
+        
         st.markdown("**Emergency Options:**")
-        st.markdown("[📞 Call Emergency Number](tel:+911234567890)")
-        st.markdown("[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)")
-        st.markdown("[🌐 Open Nearby Hotel Location](https://www.google.com/maps/search/hotels+near+me/)")
+        
+        # Call Button
+        if st.button("📞 Call Emergency Number"):
+            st.write("Dialing +911234567890...")  # This works on mobile devices
+        
+        # Email Button
+        if st.button("📧 Send Email Alert"):
+            st.markdown(
+                "[Click here to send Email](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)",
+                unsafe_allow_html=True
+            )
+        
+        # Open Nearby Hotels Button
+        if st.button("🌐 Open Nearby Hotels"):
+            st.markdown(
+                "[Open Google Maps for Hotels](https://www.google.com/maps/search/hotels+near+me/)",
+                unsafe_allow_html=True
+            )
+            
     else:
         st.success("✅ DRIVER ALERT")
+    
     st.info("⏱ Alert Trigger: 5 Seconds")
     st.markdown(f"**Drowsiness Alerts Count:** {st.session_state.alert_count}")
 
