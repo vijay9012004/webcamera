@@ -72,6 +72,8 @@ def get_live_location():
 # ===============================
 # VIDEO PROCESSOR
 # ===============================
+ALERT_TIME = 2  # seconds before alarm triggers
+
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
@@ -92,11 +94,11 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.confidence = float(np.max(pred)) * 100
         self.label = CLASSES[np.argmax(pred)]
 
-        # Drowsiness logic (10 seconds)
+        # Drowsiness logic (ALERT_TIME seconds)
         if self.label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
-            if time.time() - self.start_time > 10:
+            if time.time() - self.start_time > ALERT_TIME:
                 st.session_state.alarm_state = True
                 cv2.rectangle(
                     img,
@@ -197,7 +199,7 @@ with col2:
         play_alarm()
     else:
         st.success("✅ DRIVER ALERT")
-    st.info("⏱ Alert Trigger: 10 Seconds")
+    st.info(f"⏱ Alert Trigger: {ALERT_TIME} Seconds")
 
 # ---- LOCATION PANEL ----
 with col3:
