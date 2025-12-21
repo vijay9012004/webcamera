@@ -16,6 +16,13 @@ RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
+# ===================== PAGE CONFIG =====================
+st.set_page_config(
+    page_title="Smart Driver Safety System",
+    page_icon="🚗",
+    layout="wide"
+)
+
 # ===================== SESSION STATE =====================
 if "page" not in st.session_state:
     st.session_state.page = "welcome"
@@ -29,11 +36,27 @@ if "alert_count" not in st.session_state:
 # ===================== STYLES =====================
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
-@keyframes bg { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-.card { background: rgba(255,255,255,0.08); padding:20px; border-radius:20px; backdrop-filter: blur(12px); }
+.stApp {
+ background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000);
+ background-size:400% 400%;
+ animation:bg 15s ease infinite;
+}
+@keyframes bg {
+ 0%{background-position:0% 50%}
+ 50%{background-position:100% 50%}
+ 100%{background-position:0% 50%}
+}
+.card {
+ background: rgba(255,255,255,0.08);
+ padding:20px;
+ border-radius:20px;
+ backdrop-filter: blur(12px);
+}
 .alert { color:#ff6b6b; font-size:22px; font-weight:bold; }
-.footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
+.footer {
+ position:fixed; bottom:10px; right:20px;
+ color:#ccc; font-size:13px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -41,51 +64,12 @@ st.markdown("""
 @st.cache_resource
 def load_model_data():
     if not os.path.exists(MODEL_PATH):
-        gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=False)
-    return load_model(MODEL_PATH)
-
-# ===================== VIDEO PROCESSOR =====================
-class DrowsinessProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.model = load_model_data()
-        self.start_time = None
-
-    def recv(self, frame: av.VideoFrame):
-        img = frame.to_ndarray(format="bgr24")
-
-        # ---- PREPROCESS ----
-        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        resized = cv2.resize(rgb, (224, 224))
-        normalized = resized.astype("float32") / 255.0
-        input_data = np.expand_dims(normalized, axis=0)
-
-        # ---- PREDICT ----
-        preds = self.model.predict(input_data, verbose=0)[0]
-        notdrowsy_prob = preds[0]
-        drowsy_prob = preds[1]
-
-        # ---- DECISION ----
-        if drowsy_prob > 0.6:
-            label = "DROWSY"
-            color = (0, 0, 255)
-            st.session_state.alarm_state = True
-        else:
-            label = "NOT DROWSY"
-            color = (0, 255, 0)
-            st.session_state.alarm_state = False
-
-        # ---- DISPLAY ----
-        cv2.putText(
-            img,
-            f"{label} | D:{drowsy_prob:.2f} ND:{notdrowsy_prob:.2f}",
-            (20, 40),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            color,
-            3
+        gdown.download(
+            f"https://drive.google.com/uc?id={FILE_ID}",
+            MODEL_PATH,
+            quiet=False
         )
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+    return load_model(MODEL_PATH)
 
 # ===================== WEATHER =====================
 def get_weather():
@@ -95,7 +79,7 @@ def get_weather():
     except:
         return None
 
-# ===================== LIVE LOCATION =====================
+# ===================== GOOGLE MAP =====================
 def live_location():
     components.html("""
     <script>
@@ -112,57 +96,120 @@ def play_alarm():
     if os.path.exists("alarm.wav"):
         st.audio("alarm.wav", loop=True)
 
+# ===================== VIDEO PROCESSOR =====================
+class DrowsinessProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = load_model_data()
+        self.start_time = None
+        self.alerted = False
+
+    def recv(self, frame: av.VideoFrame):
+        img = frame.to_ndarray(format="bgr24")
+        x = cv2.resize(img, (224,224)) / 255.0
+        x = np.expand_dims(x, axis=0)
+
+        pred = self.model.predict(x, verbose=0)
+        label = CLASSES[np.argmax(pred)]
+        confidence = np.max(pred) * 100
+
+        if label == "drowsy":
+            if self.start_time is None:
+                self.start_time = time.time()
+                self.alerted = False
+
+            if time.time() - self.start_time > 2:
+                st.session_state.alarm_state = True
+                if not self.alerted:
+                    st.session_state.alert_count += 1
+                    self.alerted = True
+                cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
+                cv2.putText(img, "🚨 DROWSINESS ALERT",
+                            (40,140), cv2.FONT_HERSHEY_SIMPLEX,
+                            1.2, (0,0,255), 3)
+        else:
+            self.start_time = None
+            self.alerted = False
+            st.session_state.alarm_state = False
+
+        color = (0,255,0) if label == "notdrowsy" else (0,165,255)
+        cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)",
+                    (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
 # ===================== WELCOME PAGE =====================
 if st.session_state.page == "welcome":
-    st.title("🚗 Happy Journey")
-    st.markdown("<p style='font-size:18px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;font-size:20px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
     if st.button("➡️ Continue"):
-        st.session_state.page = "main"
-        st.experimental_rerun()  # Only called after button click
+        st.session_state.page = "safety"
+        st.rerun()
+
+# ===================== SAFETY PAGE =====================
+if st.session_state.page == "safety":
+    rules = [
+        "🌤️ Ensure you are well-rested before driving",
+        "🕶️ Take breaks if you feel sleepy",
+        "🚰 Stay hydrated",
+        "📵 Avoid distractions",
+        "❤️ Safety is more important than speed"
+    ]
+    st.markdown(f"<div class='card'><h3>{rules[st.session_state.rule_index]}</h3></div>", unsafe_allow_html=True)
+
+    if st.session_state.rule_index < len(rules)-1:
+        if st.button("Next ➡️"):
+            st.session_state.rule_index += 1
+            st.rerun()
+    else:
+        if st.button("🚗 Start Journey"):
+            st.session_state.page = "main"
+            st.rerun()
 
 # ===================== MAIN PAGE =====================
 if st.session_state.page == "main":
     st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
-    # ---- LIVE CAMERA ----
     with col1:
-        st.subheader("🎥 Live Camera")
+        st.markdown("<div class='card'><h3>🎥 Live Camera</h3>", unsafe_allow_html=True)
         webrtc_streamer(
             key="cam",
             video_processor_factory=DrowsinessProcessor,
             rtc_configuration=RTC_CONFIG,
             media_stream_constraints={"video": True, "audio": False},
-            async_processing=True
+            async_processing=True,
         )
-
-        st.subheader("🖼️ Eye Reference")
-        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/open_eye.jpg", caption="👀 Open Eye → NOT DROWSY", width=200)
-        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/closed_eye.jpg", caption="😴 Closed Eye → DROWSY", width=200)
-
-        st.subheader("📍 Live Location")
+        st.markdown("<h4>📍 Live Location</h4>", unsafe_allow_html=True)
         live_location()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # ---- DRIVER STATUS ----
     with col2:
-        st.subheader("🚦 Status")
+        st.markdown("<div class='card'><h3>🚦 Status</h3>", unsafe_allow_html=True)
         if st.session_state.alarm_state:
-            st.error("🚨 DROWSINESS DETECTED")
+            st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
             play_alarm()
         else:
             st.success("✅ DRIVER ALERT")
+
         st.markdown(f"**Alert Count:** {st.session_state.alert_count}")
 
-    # ---- WEATHER ----
+        song = st.file_uploader("🎵 Play Song", type=["mp3","wav"])
+        if song:
+            st.audio(song)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
     with col3:
-        st.subheader("🌦️ Weather")
+        st.markdown("<div class='card'><h3>🌦️ Weather</h3>", unsafe_allow_html=True)
         weather = get_weather()
         if weather and "main" in weather:
-            st.write(f"🌡️ Temp: {weather['main']['temp']} °C")
-            st.write(f"💧 Humidity: {weather['main']['humidity']} %")
-            st.write(f"💨 Wind: {weather['wind']['speed']} m/s")
-            st.write(f"{weather['weather'][0]['description'].title()}")
+            st.write(f"🌡️ {weather['main']['temp']} °C")
+            st.write(f"💧 {weather['main']['humidity']} %")
+            st.write(f"💨 {weather['wind']['speed']} m/s")
+            st.write(weather['weather'][0]['description'].title())
         else:
             st.warning("Weather unavailable")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
