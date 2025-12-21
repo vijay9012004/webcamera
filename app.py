@@ -17,14 +17,14 @@ RTC_CONFIG = RTCConfiguration(
 )
 
 # ===================== SESSION STATE =====================
-for k, v in {
-    "page": "welcome",
-    "rule_index": 0,
-    "alarm_state": False,
-    "alert_count": 0
-}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "page" not in st.session_state:
+    st.session_state.page = "welcome"
+if "rule_index" not in st.session_state:
+    st.session_state.rule_index = 0
+if "alarm_state" not in st.session_state:
+    st.session_state.alarm_state = False
+if "alert_count" not in st.session_state:
+    st.session_state.alert_count = 0
 
 # ===================== STYLES =====================
 st.markdown("""
@@ -41,11 +41,7 @@ st.markdown("""
 @st.cache_resource
 def load_model_data():
     if not os.path.exists(MODEL_PATH):
-        gdown.download(
-            f"https://drive.google.com/uc?id={FILE_ID}",
-            MODEL_PATH,
-            quiet=False
-        )
+        gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=False)
     return load_model(MODEL_PATH)
 
 # ===================== VIDEO PROCESSOR =====================
@@ -116,46 +112,38 @@ def play_alarm():
     if os.path.exists("alarm.wav"):
         st.audio("alarm.wav", loop=True)
 
-# ===================== PAGE ROUTING =====================
-# WELCOME PAGE
+# ===================== WELCOME PAGE =====================
 if st.session_state.page == "welcome":
     st.title("🚗 Happy Journey")
     st.markdown("<p style='font-size:18px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
     if st.button("➡️ Continue"):
         st.session_state.page = "main"
-        st.experimental_rerun()
+        st.experimental_rerun()  # Only called after button click
 
-# MAIN PAGE
+# ===================== MAIN PAGE =====================
 if st.session_state.page == "main":
+    st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
-    # LIVE CAMERA
+    # ---- LIVE CAMERA ----
     with col1:
         st.subheader("🎥 Live Camera")
-        try:
-            webrtc_streamer(
-                key="cam",
-                video_processor_factory=DrowsinessProcessor,
-                rtc_configuration=RTC_CONFIG,
-                media_stream_constraints={"video": True, "audio": False},
-                async_processing=True
-            )
-        except Exception as e:
-            st.error(f"Camera Error: {e}")
+        webrtc_streamer(
+            key="cam",
+            video_processor_factory=DrowsinessProcessor,
+            rtc_configuration=RTC_CONFIG,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True
+        )
 
         st.subheader("🖼️ Eye Reference")
-        st.image(
-            "https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/open_eye.jpg",
-            caption="👀 Open Eye → NOT DROWSY",
-            width=200
-        )
-        st.image(
-            "https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/closed_eye.jpg",
-            caption="😴 Closed Eye → DROWSY",
-            width=200
-        )
+        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/open_eye.jpg", caption="👀 Open Eye → NOT DROWSY", width=200)
+        st.image("https://raw.githubusercontent.com/akshaybhatia10/Driver-Drowsiness-Detection/master/images/closed_eye.jpg", caption="😴 Closed Eye → DROWSY", width=200)
 
-    # DRIVER STATUS
+        st.subheader("📍 Live Location")
+        live_location()
+
+    # ---- DRIVER STATUS ----
     with col2:
         st.subheader("🚦 Status")
         if st.session_state.alarm_state:
@@ -165,7 +153,7 @@ if st.session_state.page == "main":
             st.success("✅ DRIVER ALERT")
         st.markdown(f"**Alert Count:** {st.session_state.alert_count}")
 
-    # WEATHER
+    # ---- WEATHER ----
     with col3:
         st.subheader("🌦️ Weather")
         weather = get_weather()
@@ -176,9 +164,5 @@ if st.session_state.page == "main":
             st.write(f"{weather['weather'][0]['description'].title()}")
         else:
             st.warning("Weather unavailable")
-
-    # LIVE LOCATION
-    st.subheader("📍 Live Location")
-    live_location()
 
     st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
