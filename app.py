@@ -3,8 +3,6 @@ from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBa
 import cv2
 import os
 import av
-import requests
-import webbrowser
 import queue
 import gdown
 import numpy as np
@@ -12,6 +10,7 @@ from keras.models import load_model
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 import logging
+import webbrowser
 
 # ================== LOGGING ==================
 logging.basicConfig(level=logging.DEBUG)
@@ -71,6 +70,7 @@ def get_weather():
     if WEATHER_API_KEY == "YOUR_OPENWEATHER_API_KEY" or not WEATHER_API_KEY:
         return default_weather
     try:
+        import requests
         url = f"https://api.openweathermap.org/data/2.5/weather?q=Chennai&appid={WEATHER_API_KEY}&units=metric"
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
@@ -98,25 +98,28 @@ class DrowsinessProcessor(VideoProcessorBase):
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
-        x = cv2.resize(img, (224,224))/255.0
-        x = np.expand_dims(x, axis=0)
+        try:
+            x = cv2.resize(img, (224,224))/255.0
+            x = np.expand_dims(x, axis=0)
 
-        if model:
-            try:
+            if model:
                 pred = model.predict(x, verbose=0)[0]
-                drowsy_prob = float(pred[1])
+                if len(pred) > 1:
+                    drowsy_prob = float(pred[1])
+                else:
+                    drowsy_prob = float(pred[0])
                 label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
                 self.result_queue.put({"prob": drowsy_prob, "label": label})
 
-                # Overlay alert
                 if label == "drowsy":
                     cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
                     cv2.putText(img, "🚨 DROWSINESS ALERT", (40,140), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
 
                 color = (0,255,0) if label=="notdrowsy" else (0,165,255)
                 cv2.putText(img, f"{label.upper()} ({drowsy_prob*100:.1f}%)", (10,40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-            except Exception as e:
-                logging.error(f"Prediction error: {e}")
+
+        except Exception as e:
+            logging.error(f"Prediction error: {e}")
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -128,13 +131,17 @@ try:
     # ----- CAMERA PANEL -----
     with col1:
         st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-        ctx = webrtc_streamer(
-            key="cam",
-            video_processor_factory=DrowsinessProcessor,
-            rtc_configuration=RTC_CONFIG,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True
-        )
+        try:
+            ctx = webrtc_streamer(
+                key="cam",
+                video_processor_factory=DrowsinessProcessor,
+                rtc_configuration=RTC_CONFIG,
+                media_stream_constraints={"video": True, "audio": False},
+                async_processing=True
+            )
+        except Exception as e:
+            st.error(f"WebRTC camera connection failed: {e}")
+            ctx = None
 
     # ----- STATUS PANEL -----
     status_placeholder = st.empty()
