@@ -39,7 +39,7 @@ def play_alarm():
             st.audio(f.read(), format="audio/wav", loop=True)
 
 # ==========================================
-# GOOGLE MAP (LIVE)
+# GOOGLE MAP
 # ==========================================
 def get_live_location():
     components.html(
@@ -49,29 +49,15 @@ def get_live_location():
             let lat = pos.coords.latitude;
             let lon = pos.coords.longitude;
 
-            document.getElementById("lat").innerHTML = lat.toFixed(5);
-            document.getElementById("lon").innerHTML = lon.toFixed(5);
-
             document.getElementById("map").src =
-                `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
-
-            document.getElementById("link").href =
-                `https://www.google.com/maps?q=${lat},${lon}`;
+              `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
         });
         </script>
 
-        <div style="font-size:14px">
-            📍 <b>Latitude:</b> <span id="lat">--</span><br>
-            📍 <b>Longitude:</b> <span id="lon">--</span><br><br>
-
-            <iframe id="map" width="100%" height="220"
-                style="border-radius:10px;border:0;"></iframe>
-
-            <br>
-            🔗 <a id="link" target="_blank">Open in Google Maps</a>
-        </div>
+        <iframe id="map" width="100%" height="220"
+        style="border-radius:10px;border:0;"></iframe>
         """,
-        height=320,
+        height=250,
     )
 
 # ==========================================
@@ -85,7 +71,7 @@ class DrowsinessProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess
+        # Preprocess frame
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
@@ -99,26 +85,39 @@ class DrowsinessProcessor(VideoProcessorBase):
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
-
             if time.time() - self.start_time > 10:
                 st.session_state.alarm_state = True
-                cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]),
-                              (0, 0, 255), 15)
-                cv2.putText(img, "DROWSINESS ALERT",
-                            (50, 150),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1.5, (0, 0, 255), 4)
+                cv2.rectangle(
+                    img,
+                    (0, 0),
+                    (img.shape[1], img.shape[0]),
+                    (0, 0, 255),
+                    15
+                )
+                cv2.putText(
+                    img,
+                    "DROWSINESS ALERT",
+                    (50, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.5,
+                    (0, 0, 255),
+                    4
+                )
         else:
             self.start_time = None
             st.session_state.alarm_state = False
 
-        # Status text
+        # Status display
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
-        cv2.putText(img,
-                    f"Status: {label.upper()} ({confidence:.2f}%)",
-                    (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1, color, 2)
+        cv2.putText(
+            img,
+            f"{label.upper()} ({confidence:.2f}%)",
+            (10, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            color,
+            2
+        )
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -149,57 +148,3 @@ st.markdown("""
 </style>
 
 <div class="header">
-    <h1>🚗 Smart Driver Drowsiness Detection</h1>
-    <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
-    <p>AI-based Real-Time Driver Safety Monitoring</p>
-</div>
-""", unsafe_allow_html=True)
-
-if "alarm_state" not in st.session_state:
-    st.session_state.alarm_state = False
-
-col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
-
-# Camera
-with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    webrtc_streamer(
-        key="drowsy-cam",
-        video_processor_factory=DrowsinessProcessor,
-        rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
-
-# Status
-with col2:
-    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
-    if st.session_state.alarm_state:
-        st.error("🚨 DROWSINESS DETECTED")
-        play_alarm()
-    else:
-        st.success("✅ DRIVER ALERT")
-
-    st.info("⏱ Alert Trigger: 10 Seconds")
-
-# Location
-with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    get_live_location()
-
-st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
-        st.error("🚨 DROWSINESS DETECTED")
-        play_alarm()
-    else:
-        st.success("✅ DRIVER ALERT")
-
-    st.info("⏱ Alert Trigger: 2 Seconds")
-
-# ---- LOCATION PANEL ----
-with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    get_live_location()
-
-st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
