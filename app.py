@@ -1,17 +1,17 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBase
-import cv2, os, time, av, requests
+import cv2, os, av, requests
 import numpy as np
 from keras.models import load_model
 import gdown
 import streamlit.components.v1 as components
+import webbrowser
 
 # ===================== CONFIG =====================
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
 WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
-
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
@@ -29,12 +29,11 @@ if "webrtc_active" not in st.session_state: st.session_state.webrtc_active = Fal
 # ===================== STYLES =====================
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000);
-        background-size:400% 400%; animation:bg 15s ease infinite; }
+.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
 .card { background: rgba(255,255,255,0.08); padding:20px; border-radius:20px; backdrop-filter: blur(12px); margin-bottom: 20px; text-align:center; }
 .status-label { font-size:24px; font-weight:bold; }
 .footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
-h1, h2, h3, p, div { color: white; }
+button.ai-btn { margin:5px; padding:5px 12px; border-radius:5px; background:#0f2027; color:white; border:1px solid #ccc; cursor:pointer; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,28 +79,21 @@ class DrowsinessProcessor(VideoProcessorBase):
         img = frame.to_ndarray(format="bgr24")
         x = cv2.resize(img,(224,224))/255.0
         x = np.expand_dims(x,axis=0)
-
         if model:
             pred = model.predict(x, verbose=0)[0]
-            drowsy_prob = pred[1]  # probability of eyes closed
+            drowsy_prob = pred[1]
             label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
-
-            # Update status
             st.session_state.drowsy_status = "DROWSY" if label=="drowsy" else "NOT DROWSY"
             st.session_state.drowsy_confidence = drowsy_prob*100
-
-            # Visual alert
             if label=="drowsy":
                 cv2.rectangle(img,(0,0),(img.shape[1],img.shape[0]),(0,0,255),6)
                 cv2.putText(img,"🚨 DROWSINESS ALERT",(40,140),cv2.FONT_HERSHEY_SIMPLEX,1.2,(0,0,255),3)
-
             color=(0,255,0) if label=="notdrowsy" else (0,165,255)
             cv2.putText(img,f"{label.upper()} ({drowsy_prob*100:.1f}%)",(10,40),cv2.FONT_HERSHEY_SIMPLEX,1,color,2)
         else:
             st.session_state.drowsy_status="MODEL NOT LOADED"
             st.session_state.drowsy_confidence=0
             cv2.putText(img,"Model not loaded",(10,40),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
-
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== PAGES =====================
@@ -147,15 +139,25 @@ elif st.session_state.page=="main":
             )
             st.session_state.webrtc_active = True
 
-    # Status & Weather
+    # Status, Quotes, Weather, and AI Buttons
     with col2:
         st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
         st.markdown(f"<div class='status-label'>{st.session_state.drowsy_status} ({st.session_state.drowsy_confidence:.1f}%)</div>", unsafe_allow_html=True)
+        
+        # Display quotes dynamically
         if st.session_state.drowsy_status=="DROWSY":
-            st.image("https://i.imgur.com/8z7NxSb.png", width=80)
+            st.markdown("<p>🚨 Alert: Your eyes are closing! Take a break.</p>", unsafe_allow_html=True)
         else:
-            st.image("https://i.imgur.com/9Qw8vht.png", width=80)
+            st.markdown("<p>😊 Keep driving safely! Stay alert.</p>", unsafe_allow_html=True)
 
+        # AI Buttons for help
+        st.markdown("<div class='card'><h4>🆘 AI Support</h4></div>", unsafe_allow_html=True)
+        if st.button("Nearby Hotels"):
+            webbrowser.open("https://www.google.com/maps/search/hotels+near+me")
+        if st.button("Report Danger"):
+            st.markdown("<p>⚠️ Danger reported to AI system!</p>", unsafe_allow_html=True)
+
+        # Weather
         weather=get_weather()
         temp=weather['main']['temp']
         desc=weather['weather'][0]['description']
