@@ -14,7 +14,7 @@ import streamlit.components.v1 as components
 # ==========================================
 FILE_ID = '1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB'
 MODEL_PATH = 'driver_drowsiness.h5'
-CLASSES = ['drowsy', 'notdrowsy']
+CLASSES = ['notdrowsy', 'drowsy']
 
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
