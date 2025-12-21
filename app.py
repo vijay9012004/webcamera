@@ -10,7 +10,7 @@ import av
 import streamlit.components.v1 as components
 
 # ==========================================
-# CONFIGURATION
+# CONFIG
 # ==========================================
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
@@ -31,7 +31,7 @@ def get_model():
     return load_model(MODEL_PATH)
 
 # ==========================================
-# ALARM SOUND
+# ALARM
 # ==========================================
 def play_alarm():
     if os.path.exists("alarm.wav"):
@@ -39,7 +39,7 @@ def play_alarm():
             st.audio(f.read(), format="audio/wav", loop=True)
 
 # ==========================================
-# GOOGLE MAP
+# GOOGLE MAP / LIVE LOCATION
 # ==========================================
 def get_live_location():
     components.html(
@@ -70,36 +70,33 @@ class DrowsinessProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess frame
         resized = cv2.resize(img, (224, 224))
         normalized = resized.astype("float32") / 255.0
         input_data = np.expand_dims(normalized, axis=0)
 
-        # Prediction
         pred = self.model.predict(input_data, verbose=0)
-        confidence = float(np.max(pred)) * 100
         label = CLASSES[np.argmax(pred)]
+        confidence = float(np.max(pred)) * 100
 
-        # Drowsiness logic (10 seconds)
         if label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
                 self.alerted = False
-            if time.time() - self.start_time > 10:
+            if time.time() - self.start_time > 5:
                 st.session_state.alarm_state = True
                 if not self.alerted:
                     st.session_state.alert_count += 1
                     self.alerted = True
-                cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 15)
-                cv2.putText(img, "DROWSINESS ALERT", (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0,0,255), 4)
+                cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
+                cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
         else:
             self.start_time = None
             st.session_state.alarm_state = False
             self.alerted = False
 
-        # Status display
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
-        cv2.putText(img, f"{label.upper()} ({confidence:.2f}%)", (10, 40),
+        cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
@@ -107,7 +104,7 @@ class DrowsinessProcessor(VideoProcessorBase):
 # ==========================================
 # STREAMLIT UI
 # ==========================================
-st.set_page_config(page_title="Smart Driver Safety System", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="Driver Safety System", page_icon="🚗", layout="wide")
 
 # HEADER
 st.markdown("""
@@ -124,25 +121,25 @@ st.markdown("""
     padding:15px;
     border-radius:15px;
     box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    margin-bottom:15px;
 }
 </style>
 <div class="header">
     <h1>🚗 Smart Driver Drowsiness Detection</h1>
-    <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
+    <h3>👨‍💻 Team: TACK TECHNO</h3>
     <p>AI-based Real-Time Driver Safety Monitoring</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Initialize alarm state
+# Initialize states
 if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
 if "alert_count" not in st.session_state:
     st.session_state.alert_count = 0
 
-# Layout columns
+# LAYOUT
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
-# ---- CAMERA PANEL ----
 with col1:
     st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
     webrtc_streamer(
@@ -150,24 +147,26 @@ with col1:
         video_processor_factory=DrowsinessProcessor,
         rtc_configuration=RTC_CONFIG,
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
+        async_processing=True
     )
 
-# ---- STATUS PANEL ----
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
+        st.markdown("**Emergency Options:**")
+        st.markdown("[📞 Call Emergency Number](tel:+911234567890)")
+        st.markdown("[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy)")
+        st.markdown("[🏨 Nearby Hotels](https://www.google.com/maps/search/hotels+near+me/)")
     else:
         st.success("✅ DRIVER ALERT")
-    st.info("⏱ Alert Trigger: 10 Seconds")
+    st.info("⏱ Alert Trigger: 5 Seconds")
     st.markdown(f"**Drowsiness Alerts Count:** {st.session_state.alert_count}")
 
-# ---- LOCATION PANEL ----
 with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     get_live_location()
 
 st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
+st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC • Emergency Features Included")
