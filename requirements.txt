@@ -1,7 +1,7 @@
-streamlit
-streamlit-webrtc
-opencv-python-headless
+streamlitstreamlit-webrtc
+opencv-python
+numpy
 keras
 tensorflow
 gdown
-av
+PyAV
