@@ -2,71 +2,28 @@ import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import cv2
 import numpy as np
-from keras.models import load_model
-import gdown
-import os
 import time
 import av
 import streamlit.components.v1 as components
 
 # ===================== CONFIG =====================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
-MODEL_PATH = "driver_drowsiness.h5"
 CLASSES = ["notdrowsy", "drowsy"]
-
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
-# ===================== LOAD MODEL =====================
-@st.cache_resource
-def get_model():
-    if not os.path.exists(MODEL_PATH):
-        url = f"https://drive.google.com/uc?id={FILE_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False)
-    return load_model(MODEL_PATH)
-
-# ===================== ALARM =====================
-def play_alarm():
-    if os.path.exists("alarm.wav"):
-        st.audio("alarm.wav", format="audio/wav", loop=True, start_time=0)
-
-# ===================== GOOGLE MAP =====================
-def get_live_location():
-    components.html(
-        """
-        <script>
-        navigator.geolocation.watchPosition(function(pos) {
-            let lat = pos.coords.latitude;
-            let lon = pos.coords.longitude;
-            document.getElementById("map").src =
-              `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
-        });
-        </script>
-        <iframe id="map" width="100%" height="220"
-        style="border-radius:10px;border:0;"></iframe>
-        """,
-        height=250,
-    )
-
 # ===================== VIDEO PROCESSOR =====================
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
-        self.model = get_model()
+        # Dummy model: randomly predicts drowsy/notdrowsy
         self.start_time = None
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
 
-        # Preprocess frame
-        resized = cv2.resize(img, (224, 224))
-        normalized = resized.astype("float32") / 255.0
-        input_data = np.expand_dims(normalized, axis=0)
-
-        # Prediction
-        pred = self.model.predict(input_data, verbose=0)
-        label = CLASSES[np.argmax(pred)]
-        confidence = float(np.max(pred)) * 100
+        # Simulate model prediction (for demonstration)
+        label = np.random.choice(CLASSES, p=[0.8, 0.2])
+        confidence = np.random.uniform(70, 100)
 
         # Drowsiness logic (5 seconds)
         if label == "drowsy":
@@ -87,7 +44,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             except RuntimeError:
                 pass
 
-        # Status overlay
+        # Overlay status
         color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
         cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)", (10, 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
@@ -95,45 +52,16 @@ class DrowsinessProcessor(VideoProcessorBase):
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ===================== STREAMLIT UI =====================
-st.set_page_config(page_title="Smart Driver Safety System", page_icon="🚗", layout="wide")
+st.set_page_config(page_title="Smart Driver Safety", layout="wide")
 
-# Header
-st.markdown(
-    """
-    <style>
-    .header {
-        background: linear-gradient(90deg,#1e3c72,#2a5298);
-        padding:20px;
-        border-radius:15px;
-        color:white;
-        text-align:center;
-    }
-    .card {
-        background:white;
-        padding:15px;
-        border-radius:15px;
-        box-shadow:0 4px 10px rgba(0,0,0,0.1);
-    }
-    </style>
-    <div class="header">
-        <h1>🚗 Smart Driver Drowsiness Detection</h1>
-        <h3>👨‍💻 Team: <b>TACK TECHNO</b></h3>
-        <p>AI-based Real-Time Driver Safety Monitoring</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Initialize alarm state
 if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
 
-# Layout
 col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
-# Camera
+# -------- Live Camera Feed --------
 with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
+    st.markdown("### 🎥 Live Camera")
     webrtc_streamer(
         key="drowsy-cam",
         video_processor_factory=DrowsinessProcessor,
@@ -142,20 +70,34 @@ with col1:
         async_processing=True,
     )
 
-# Status
+# -------- Driver Status Panel --------
 with col2:
-    st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    st.markdown("### 🚦 Driver Status")
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
-        play_alarm()
+        # Play alarm
+        st.audio("alarm.wav", autoplay=True)
     else:
         st.success("✅ DRIVER ALERT")
     st.info("⏱ Alert Trigger: 5 Seconds")
 
-# Location
+# -------- Live Location Panel --------
 with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    get_live_location()
+    st.markdown("### 📍 Live Location")
+    components.html(
+        """
+        <script>
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            let lat = pos.coords.latitude;
+            let lon = pos.coords.longitude;
+            document.getElementById("map").src = 
+                `https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`;
+        });
+        </script>
+        <iframe id="map" width="100%" height="220" style="border-radius:10px;border:0;"></iframe>
+        """,
+        height=250
+    )
 
 st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
+st.caption("Powered by Streamlit • OpenCV • WebRTC")
