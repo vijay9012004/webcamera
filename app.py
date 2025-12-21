@@ -54,8 +54,6 @@ class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
-        if "alert_count" not in st.session_state:
-            st.session_state.alert_count = 0
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
@@ -77,6 +75,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             if time.time() - self.start_time > 5:
                 st.session_state.alarm_state = True
                 st.session_state.alert_count += 1
+                # Visual alert on video
                 cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 8)
                 cv2.putText(img, "🚨 DROWSINESS ALERT", (50, 150),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
@@ -110,6 +109,10 @@ st.markdown("""
     box-shadow:0 4px 10px rgba(0,0,0,0.1);
     margin-bottom:15px;
 }
+.button-link {
+    text-decoration:none;
+    color:white;
+}
 </style>
 <div class="header">
     <h1>🚗 Smart Driver Drowsiness Detection</h1>
@@ -138,22 +141,21 @@ with col1:
         async_processing=True,
     )
 
-# -------- Driver Status --------
+# -------- Driver Status & Emergency --------
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
+        # Emergency Options
+        st.markdown("**Emergency Options:**")
+        st.markdown("[📞 Call Emergency Number](tel:+911234567890)")
+        st.markdown("[📧 Send Email Alert](mailto:emergency@example.com?subject=Drowsiness Alert&body=Driver is drowsy near the hotel location)")
+        st.markdown("[🌐 Open Nearby Hotel Location](https://www.google.com/maps/search/hotels+near+me/)")
     else:
         st.success("✅ DRIVER ALERT")
     st.info("⏱ Alert Trigger: 5 Seconds")
-    
-    # Alert history
     st.markdown(f"**Drowsiness Alerts Count:** {st.session_state.alert_count}")
-
-    # Confidence bar
-    confidence_val = st.session_state.get("last_confidence", 0)
-    st.progress(int(confidence_val))
 
 # -------- Live Location --------
 with col3:
@@ -161,4 +163,4 @@ with col3:
     get_live_location()
 
 st.markdown("---")
-st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC")
+st.caption("Powered by Streamlit • OpenCV • TensorFlow • WebRTC • Emergency Features Included")
