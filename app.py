@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration, webrtc_ctx
 import cv2, os, time, av, requests
 import numpy as np
 from keras.models import load_model
@@ -16,9 +16,7 @@ RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
-st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
-
-# ===================== SESSION =====================
+# ===================== SESSION STATE =====================
 for k, v in {
     "page": "welcome",
     "rule_index": 0,
@@ -27,6 +25,17 @@ for k, v in {
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ===================== STYLES =====================
+st.markdown("""
+<style>
+.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
+@keyframes bg { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+.card { background: rgba(255,255,255,0.08); padding:20px; border-radius:20px; backdrop-filter: blur(12px); }
+.alert { color:#ff6b6b; font-size:22px; font-weight:bold; }
+.footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
+</style>
+""", unsafe_allow_html=True)
 
 # ===================== LOAD MODEL =====================
 @st.cache_resource
@@ -102,24 +111,33 @@ def live_location():
     <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
     """, height=230)
 
-# ===================== UI =====================
+# ===================== ALARM =====================
+def play_alarm():
+    if os.path.exists("alarm.wav"):
+        st.audio("alarm.wav", loop=True)
+
+# ===================== PAGE ROUTING =====================
 if st.session_state.page == "welcome":
     st.title("🚗 Happy Journey")
     if st.button("Continue ➡️"):
         st.session_state.page = "main"
-        st.rerun()
+        st.experimental_rerun()
 
 if st.session_state.page == "main":
-    col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
+    col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
     with col1:
         st.subheader("🎥 Live Camera")
-        webrtc_streamer(
-            key="cam",
-            video_processor_factory=DrowsinessProcessor,
-            rtc_configuration=RTC_CONFIG,
-            media_stream_constraints={"video": True, "audio": False},
-        )
+        try:
+            webrtc_streamer(
+                key="cam",
+                video_processor_factory=DrowsinessProcessor,
+                rtc_configuration=RTC_CONFIG,
+                media_stream_constraints={"video": True, "audio": False},
+                async_processing=True
+            )
+        except Exception as e:
+            st.error(f"Camera Error: {e}")
 
         st.subheader("🖼️ Eye Reference")
         st.image(
@@ -137,12 +155,24 @@ if st.session_state.page == "main":
         st.subheader("🚦 Status")
         if st.session_state.alarm_state:
             st.error("🚨 DROWSINESS DETECTED")
+            play_alarm()
         else:
             st.success("✅ DRIVER ALERT")
+
+        st.markdown(f"**Alert Count:** {st.session_state.alert_count}")
 
     with col3:
         st.subheader("🌦️ Weather")
         weather = get_weather()
         if weather and "main" in weather:
-            st.write(f"🌡️ {weather['main']['temp']} °C")
-            st.write(weather['weather'][0]['description'].title())
+            st.write(f"🌡️ Temp: {weather['main']['temp']} °C")
+            st.write(f"💧 Humidity: {weather['main']['humidity']} %")
+            st.write(f"💨 Wind: {weather['wind']['speed']} m/s")
+            st.write(f"{weather['weather'][0]['description'].title()}")
+        else:
+            st.warning("Weather unavailable")
+
+    st.subheader("📍 Live Location")
+    live_location()
+
+    st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
