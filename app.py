@@ -3,6 +3,7 @@ from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBa
 import cv2, os, av, requests, webbrowser, queue, gdown, numpy as np
 from keras.models import load_model
 import streamlit.components.v1 as components
+from streamlit_autorefresh import st_autorefresh
 
 # ================= CONFIG =================
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
@@ -21,8 +22,6 @@ if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
 if "danger_count" not in st.session_state:
     st.session_state.danger_count = 0
-if "webrtc_active" not in st.session_state:
-    st.session_state.webrtc_active = False
 
 # ================= STYLES =================
 st.markdown("""
@@ -86,7 +85,7 @@ class DrowsinessProcessor(VideoProcessorBase):
             label = "drowsy" if drowsy_prob > 0.5 else "notdrowsy"
             self.result_queue.put({"prob": drowsy_prob, "label": label})
 
-            # Visual alert overlay
+            # Overlay alert
             if label == "drowsy":
                 cv2.rectangle(img, (0,0), (img.shape[1], img.shape[0]), (0,0,255), 6)
                 cv2.putText(img, "🚨 DROWSINESS ALERT", (40,140), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
@@ -110,7 +109,6 @@ with col1:
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True
     )
-    st.session_state.webrtc_active = True
 
 # ----- STATUS PANEL -----
 status_placeholder = st.empty()
@@ -145,17 +143,25 @@ with col3:
     st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
     live_location()
 
-# ====== POLL QUEUE AND UPDATE STATUS ======
+# ====== AUTO REFRESH EVERY SECOND ======
+st_autorefresh(interval=1000, key="driver_status_refresh")
+
+# ====== REAL-TIME STATUS UPDATE ======
 if ctx and ctx.video_processor:
     processor = ctx.video_processor
-    for _ in range(10):  # Poll queue a few times
-        try:
-            data = processor.result_queue.get_nowait()
-            st.session_state.drowsy_confidence = data["prob"]*100
-            st.session_state.drowsy_status = data["label"].upper()
-            st.session_state.alarm_state = True if data["label"]=="drowsy" else False
-        except queue.Empty:
-            break
+    try:
+        data = processor.result_queue.get_nowait()
+        st.session_state.drowsy_confidence = data["prob"]*100
+        st.session_state.drowsy_status = data["label"].upper()
+        st.session_state.alarm_state = True if data["label"]=="drowsy" else False
+    except queue.Empty:
+        pass
+
+# Display driver alert
+if st.session_state.alarm_state:
+    st.error("🚨 DROWSINESS ALERT! Take a break!")
+else:
+    st.success("✅ DRIVER ALERT")
 
 status_placeholder.metric(
     "Drowsiness Status",
@@ -163,4 +169,4 @@ status_placeholder.metric(
     f"{st.session_state.drowsy_confidence:.1f}%"
 )
 
-st.markdown("<div class='footer'>Smart Driver System v1.0</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>Smart Driver System v2.0</div>", unsafe_allow_html=True)
