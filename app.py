@@ -9,20 +9,20 @@ import time
 import av
 import streamlit.components.v1 as components
 
-# ==========================================
+# ===============================
 # CONFIGURATION
-# ==========================================
+# ===============================
 FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
 MODEL_PATH = "driver_drowsiness.h5"
-CLASSES = ["drowsy", "notdrowsy"]  # Define your classes
+CLASSES = ["drowsy", "notdrowsy"]
 
 RTC_CONFIG = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
-# ==========================================
+# ===============================
 # LOAD MODEL
-# ==========================================
+# ===============================
 @st.cache_resource
 def get_model():
     if not os.path.exists(MODEL_PATH):
@@ -31,9 +31,9 @@ def get_model():
         st.success("Model downloaded successfully!")
     return load_model(MODEL_PATH)
 
-# ==========================================
+# ===============================
 # ALARM SOUND
-# ==========================================
+# ===============================
 if "alarm_state" not in st.session_state:
     st.session_state.alarm_state = False
 if "alarm_played" not in st.session_state:
@@ -48,9 +48,9 @@ def play_alarm():
     elif not st.session_state.alarm_state:
         st.session_state.alarm_played = False
 
-# ==========================================
+# ===============================
 # GOOGLE MAP
-# ==========================================
+# ===============================
 def get_live_location():
     components.html(
         """
@@ -69,13 +69,15 @@ def get_live_location():
         height=250,
     )
 
-# ==========================================
+# ===============================
 # VIDEO PROCESSOR
-# ==========================================
+# ===============================
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
         self.model = get_model()
         self.start_time = None
+        self.label = "notdrowsy"
+        self.confidence = 0.0
 
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
@@ -87,11 +89,11 @@ class DrowsinessProcessor(VideoProcessorBase):
 
         # Prediction
         pred = self.model.predict(input_data, verbose=0)
-        confidence = float(np.max(pred)) * 100
-        label = CLASSES[np.argmax(pred)]
+        self.confidence = float(np.max(pred)) * 100
+        self.label = CLASSES[np.argmax(pred)]
 
         # Drowsiness logic (10 seconds)
-        if label == "drowsy":
+        if self.label == "drowsy":
             if self.start_time is None:
                 self.start_time = time.time()
             if time.time() - self.start_time > 10:
@@ -116,11 +118,11 @@ class DrowsinessProcessor(VideoProcessorBase):
             self.start_time = None
             st.session_state.alarm_state = False
 
-        # Status display
-        color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
+        # Display prediction class and confidence
+        color = (0, 255, 0) if self.label == "notdrowsy" else (0, 165, 255)
         cv2.putText(
             img,
-            f"{label.upper()} ({confidence:.2f}%)",
+            f"{self.label.upper()} ({self.confidence:.2f}%)",
             (10, 40),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
@@ -130,9 +132,9 @@ class DrowsinessProcessor(VideoProcessorBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# ==========================================
+# ===============================
 # STREAMLIT UI
-# ==========================================
+# ===============================
 st.set_page_config(
     page_title="Smart Driver Safety System",
     page_icon="🚗",
@@ -172,8 +174,8 @@ col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
 # ---- CAMERA PANEL ----
 with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    webrtc_streamer(
+    st.markdown("<div class='card'><h3>🎥 Live Camera Detection</h3></div>", unsafe_allow_html=True)
+    ctx = webrtc_streamer(
         key="drowsy-cam",
         video_processor_factory=DrowsinessProcessor,
         rtc_configuration=RTC_CONFIG,
@@ -184,6 +186,12 @@ with col1:
 # ---- STATUS PANEL ----
 with col2:
     st.markdown("<div class='card'><h3>🚦 Driver Status</h3></div>", unsafe_allow_html=True)
+    if ctx.video_processor:
+        label = ctx.video_processor.label
+        confidence = ctx.video_processor.confidence
+        st.write(f"**Class:** {label.upper()}")
+        st.write(f"**Confidence:** {confidence:.2f}%")
+
     if st.session_state.alarm_state:
         st.error("🚨 DROWSINESS DETECTED")
         play_alarm()
