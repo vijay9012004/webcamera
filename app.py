@@ -1,28 +1,26 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, RTCConfiguration, VideoProcessorBase
-import cv2, time, os, av, requests
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+import cv2, os, time, av, requests
 import numpy as np
 from keras.models import load_model
 import gdown
 import streamlit.components.v1 as components
 
-# ================= CONFIG =================
-FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
-MODEL_PATH = "driver_drowsiness.h5"
-CLASSES = ["notdrowsy", "drowsy"]
-WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"  # replace
+# ===================== WEATHER CONFIG =====================
+WEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
 
-RTC_CONFIG = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-)
+# ===================== SESSION =====================
+if "page" not in st.session_state:
+    st.session_state.page = "welcome"
+if "rule_index" not in st.session_state:
+    st.session_state.rule_index = 0
+if "alert" not in st.session_state:
+    st.session_state.alert = False
 
-st.set_page_config(
-    page_title="Smart Driver Safety System",
-    page_icon="🚗",
-    layout="wide"
-)
+# ===================== PAGE CONFIG =====================
+st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
 
-# ================= STYLE =================
+# ===================== STYLE =====================
 st.markdown("""
 <style>
 .stApp {
@@ -37,10 +35,14 @@ st.markdown("""
 }
 .card {
  background: rgba(255,255,255,0.08);
- padding:20px;
+ padding:22px;
  border-radius:20px;
  backdrop-filter: blur(12px);
- margin-bottom: 20px;
+}
+.alert {
+ color:#ff6b6b;
+ font-size:22px;
+ font-weight:bold;
 }
 .footer {
  position:fixed;
@@ -49,109 +51,168 @@ st.markdown("""
  color:#ccc;
  font-size:13px;
 }
-h1,h2,h3,p {color:white;}
 </style>
 """, unsafe_allow_html=True)
 
-# ================= LOAD MODEL =================
-@st.cache_resource
-def load_model_data():
-    if not os.path.exists(MODEL_PATH):
-        gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH)
-    return load_model(MODEL_PATH)
+# ===================== WELCOME PAGE =====================
+if st.session_state.page == "welcome":
+    st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;font-size:20px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='width:120px;height:120px;margin:auto;border-radius:50%;"
+        "background:radial-gradient(circle at top,#00f2fe,#4facfe);'></div>",
+        unsafe_allow_html=True
+    )
+    if st.button("➡️ Continue"):
+        st.session_state.page = "safety"
+        st.session_state.rule_index = 0
+        st.rerun()
 
-model = load_model_data()
+# ===================== SAFETY PAGE =====================
+if st.session_state.page == "safety":
+    rules = [
+        "🌤️ Please make sure you are well-rested before starting your journey.",
+        "🕶️ If you feel sleepy, it’s okay to take a short break and relax.",
+        "🚰 Keep yourself hydrated and comfortable while driving.",
+        "📵 Avoid distractions and keep your focus on the road.",
+        "❤️ Your safety matters more than reaching early. Drive calmly."
+    ]
 
-# ================= WEATHER =================
-def get_weather():
-    try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q=Chennai&appid={WEATHER_API_KEY}&units=metric"
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            return res.json()
-    except:
-        pass
-    return None
-
-# ================= VIDEO PROCESSOR =================
-class DrowsinessProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.start_time = None
-
-    def recv(self, frame: av.VideoFrame):
-        img = frame.to_ndarray(format="bgr24")
-
-        x = cv2.resize(img, (224, 224)) / 255.0
-        x = np.expand_dims(x, axis=0)
-
-        pred = model.predict(x, verbose=0)[0]
-        label = CLASSES[np.argmax(pred)]
-        confidence = np.max(pred) * 100
-
-        if label == "drowsy":
-            if self.start_time is None:
-                self.start_time = time.time()
-            if time.time() - self.start_time > 2:
-                cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 6)
-                cv2.putText(img, "🚨 DROWSINESS ALERT",
-                            (40, 120),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1.2, (0, 0, 255), 3)
-        else:
-            self.start_time = None
-
-        color = (0, 255, 0) if label == "notdrowsy" else (0, 165, 255)
-        cv2.putText(img, f"{label.upper()} ({confidence:.1f}%)",
-                    (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# ================= UI =================
-st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
-
-# CAMERA
-with col1:
-    st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
-    webrtc_streamer(
-        key="camera",
-        video_processor_factory=DrowsinessProcessor,
-        rtc_configuration=RTC_CONFIG,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True
+    st.markdown("<h2 style='text-align:center;'>🛡️ Safety Guidelines</h2>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='card'><h3>{rules[st.session_state.rule_index]}</h3></div>",
+        unsafe_allow_html=True
     )
 
-# STATUS + WEATHER
-with col2:
-    st.markdown("<div class='card'><h3>📊 Status</h3></div>", unsafe_allow_html=True)
-    st.info("Monitoring driver alertness in real time")
-
-    weather = get_weather()
-    if weather:
-        st.markdown(f"""
-        <div class='card'>
-        <h4>🌤️ Weather</h4>
-        <p>🌡️ {weather['main']['temp']} °C</p>
-        <p>🌥️ {weather['weather'][0]['description'].title()}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    if st.session_state.rule_index < 4:
+        if st.button("Next ➡️"):
+            st.session_state.rule_index += 1
+            st.rerun()
     else:
-        st.warning("Weather unavailable")
+        if st.button("🚗 Start Journey"):
+            st.session_state.page = "main"
+            st.rerun()
 
-# LOCATION
-with col3:
-    st.markdown("<div class='card'><h3>📍 Live Location</h3></div>", unsafe_allow_html=True)
-    components.html("""
-    <script>
-    navigator.geolocation.watchPosition(p=>{
-      document.getElementById("map").src=
-      `https://maps.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}&z=15&output=embed`;
-    });
-    </script>
-    <iframe id="map" width="100%" height="220"
-    style="border-radius:12px;border:0;"></iframe>
-    """, height=230)
+# ===================== WEATHER =====================
+def get_weather():
+    try:
+        url = (
+            "https://api.openweathermap.org/data/2.5/weather"
+            f"?q=Chennai&appid={WEATHER_API_KEY}&units=metric"
+        )
+        return requests.get(url, timeout=5).json()
+    except:
+        return None
 
-st.markdown("<div class='footer'>Smart Driver Safety System</div>", unsafe_allow_html=True)
+# ===================== MAIN PAGE =====================
+if st.session_state.page == "main":
+
+    FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
+    MODEL_PATH = "driver_drowsiness.h5"
+    CLASSES = ["notdrowsy", "drowsy"]
+
+    RTC_CONFIG = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    )
+
+    @st.cache_resource
+    def load_model_data():
+        if not os.path.exists(MODEL_PATH):
+            gdown.download(
+                f"https://drive.google.com/uc?id={FILE_ID}",
+                MODEL_PATH
+            )
+        return load_model(MODEL_PATH)
+
+    class DrowsinessProcessor(VideoProcessorBase):
+        def __init__(self):
+            self.model = load_model_data()
+            self.start_time = None
+
+        def recv(self, frame: av.VideoFrame):
+            img = frame.to_ndarray(format="bgr24")
+
+            x = cv2.resize(img, (224, 224)) / 255.0
+            x = np.expand_dims(x, axis=0)
+
+            pred = self.model.predict(x, verbose=0)
+            label = CLASSES[np.argmax(pred)]
+
+            if label == "drowsy":
+                if self.start_time is None:
+                    self.start_time = time.time()
+                if time.time() - self.start_time > 2:
+                    st.session_state.alert = True
+                    cv2.putText(
+                        img,
+                        "DROWSINESS ALERT",
+                        (30, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        3
+                    )
+            else:
+                self.start_time = None
+                st.session_state.alert = False
+
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+    st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
+
+    # CAMERA + MAP
+    with col1:
+        st.markdown("<div class='card'><h3>🎥 Live Camera</h3>", unsafe_allow_html=True)
+        webrtc_streamer(
+            key="cam",
+            video_processor_factory=DrowsinessProcessor,
+            rtc_configuration=RTC_CONFIG,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
+
+        st.markdown("<h4>📍 Live Location</h4>", unsafe_allow_html=True)
+        components.html("""
+        <script>
+        navigator.geolocation.watchPosition(p=>{
+          document.getElementById("map").src =
+          `https://maps.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}&z=15&output=embed`;
+        });
+        </script>
+        <iframe id="map" width="100%" height="220"
+        style="border-radius:12px;border:0;"></iframe>
+        """, height=230)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # STATUS + SONG
+    with col2:
+        st.markdown("<div class='card'><h3>🚦 Status</h3>", unsafe_allow_html=True)
+        if st.session_state.alert:
+            st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
+        else:
+            st.success("✅ DRIVER ALERT")
+
+        st.markdown("### 🎵 Play a Song")
+        song_file = st.file_uploader("Choose a song (mp3 / wav)", type=["mp3", "wav"])
+        if song_file:
+            st.audio(song_file)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # WEATHER
+    with col3:
+        st.markdown("<div class='card'><h3>🌦️ Live Weather</h3>", unsafe_allow_html=True)
+        weather = get_weather()
+        if weather and "main" in weather:
+            st.write(f"🌡️ Temp: {weather['main']['temp']} °C")
+            st.write(f"💧 Humidity: {weather['main']['humidity']} %")
+            st.write(f"💨 Wind: {weather['wind']['speed']} m/s")
+            st.write(f"🌥️ {weather['weather'][0]['description'].title()}")
+        else:
+            st.warning("Weather unavailable")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
