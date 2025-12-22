@@ -7,4 +7,4 @@ tensorflow
 gdown
 requests
 streamlit-autorefresh
-cv
+cv2
