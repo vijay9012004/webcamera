@@ -152,7 +152,7 @@ def main_page():
 
     # ===== CAMERA + MAP =====
     with col1:
-        st.markdown("<div class='card'><h3>🎥 Live Camera</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
         webrtc_streamer(
             key="cam",
             video_processor_factory=DrowsinessProcessor,
@@ -172,18 +172,39 @@ def main_page():
         <iframe id="map" width="100%" height="220"
         style="border-radius:12px;border:0;"></iframe>
         """, height=230)
-        st.markdown("</div>", unsafe_allow_html=True)
 
     # ===== STATUS + SONG =====
     with col2:
-        st.markdown("<div class='card'><h3>🚦 Status</h3>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><h3>🚦 Status</h3></div>", unsafe_allow_html=True)
         if st.session_state.alert:
             st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
         else:
             st.success("✅ DRIVER ALERT")
 
-        st.markdown("### 🎵 Play a Song")
+        st.markdown("### 🎵 Play a Song", unsafe_allow_html=True)
         song_file = st.file_uploader("Choose a song (mp3 / wav)", type=["mp3", "wav"])
         if song_file:
             st.audio(song_file)
-        st.markdown("</div>", unsafe_allow_html=
+
+    # ===== WEATHER =====
+    with col3:
+        st.markdown("<div class='card'><h3>🌦️ Live Weather</h3></div>", unsafe_allow_html=True)
+        city = st.text_input("📍 Enter City", "Chennai")
+        weather = get_weather(city)
+        if weather and "main" in weather:
+            st.write(f"🌡️ Temp: {weather['main']['temp']} °C")
+            st.write(f"💧 Humidity: {weather['main']['humidity']} %")
+            st.write(f"💨 Wind: {weather['wind']['speed']} m/s")
+            st.write(f"🌥️ {weather['weather'][0]['description'].title()}")
+        else:
+            st.warning("⚠️ Weather unavailable")
+
+    st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
+
+# ================== PAGE ROUTER ==================
+if st.session_state.page == "welcome":
+    welcome_page()
+elif st.session_state.page == "safety":
+    safety_page()
+elif st.session_state.page == "main":
+    main_page()
