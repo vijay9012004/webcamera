@@ -1,10 +1,9 @@
 streamlit
 streamlit-webrtc
-opencv-python
-numpy
-keras
+opencv-python-headless
 tensorflow
+keras
+numpy
+av
 gdown
 requests
-streamlit-autorefresh
-cv2
