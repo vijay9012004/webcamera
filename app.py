@@ -21,12 +21,39 @@ for key, val in {"page": "welcome", "rule_index": 0, "alert": False}.items():
 # ================== STYLE ==================
 st.markdown("""
 <style>
-.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
+.stApp {
+ background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000);
+ background-size:400% 400%;
+ animation:bg 15s ease infinite;
+ color:white;
+}
 @keyframes bg {0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-.card { background: rgba(255,255,255,0.08); padding:22px; border-radius:20px; backdrop-filter: blur(12px);}
-.alert { color:#ff6b6b; font-size:22px; font-weight:bold; }
+.card {
+ background: rgba(255,255,255,0.1);
+ padding:22px;
+ border-radius:20px;
+ backdrop-filter: blur(12px);
+ margin-bottom:15px;
+}
+.alert { color:#ff6b6b; font-size:22px; font-weight:bold; animation:blink 1s infinite; }
+@keyframes blink { 50%{opacity:0;} }
 .footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
-button.emergency { background-color:#ff4d4d; color:white; font-size:18px; padding:12px 20px; border-radius:12px; border:none; cursor:pointer;}
+button.emergency {
+ background-color:#ff4d4d;
+ color:white;
+ font-size:20px;
+ padding:14px 22px;
+ border-radius:12px;
+ border:none;
+ cursor:pointer;
+ box-shadow: 0px 0px 15px 3px #ff4d4d;
+ animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+ 0%{box-shadow:0 0 0 0 rgba(255,77,77,0.4);}
+ 70%{box-shadow:0 0 0 15px rgba(255,77,77,0);}
+ 100%{box-shadow:0 0 0 0 rgba(255,77,77,0);}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -43,19 +70,17 @@ def load_model_data():
 # ================== ALARM CONFIG ==================
 ALARM_FILE = "alarm.wav"
 if not Path(ALARM_FILE).exists():
-    # Replace with your Google Drive ID for alarm.wav
     gdown.download("https://drive.google.com/uc?id=YOUR_ALARM_WAV_FILE_ID", ALARM_FILE, quiet=True)
 
 def play_alarm():
     threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
 
-# ================== FAMILY EMERGENCY CONFIG ==================
-FAMILY_NUMBERS = ["+919876543210", "+919812345678"]  # Example numbers
+# ================== FAMILY EMERGENCY ==================
+FAMILY_NUMBERS = ["+919876543210", "+919812345678"]  # Example
 def trigger_emergency():
     st.warning("🚨 Emergency signal sent to family members!")
     for number in FAMILY_NUMBERS:
         st.info(f"📞 Calling: {number}")
-    # For demo, just display numbers. Real integration can use Twilio API for calls/SMS.
 
 # ================== DROWSINESS PROCESSOR ==================
 class DrowsinessProcessor(VideoProcessorBase):
@@ -63,8 +88,8 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.model = load_model_data()
         self.eye_closed_start = None
         self.eye_open_start = None
-        self.CLOSED_LIMIT = 2    # 2 seconds for demo/testing
-        self.OPEN_LIMIT = 2      # 2 seconds eyes open to reset alert
+        self.CLOSED_LIMIT = 2    # 2 seconds demo
+        self.OPEN_LIMIT = 2
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
@@ -110,7 +135,8 @@ def get_weather():
     except:
         return None
 
-# ================== WELCOME PAGE ==================
+# ================== PAGES ==================
+# Welcome
 if st.session_state.page == "welcome":
     st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
@@ -118,7 +144,7 @@ if st.session_state.page == "welcome":
         st.session_state.page = "safety"
         st.rerun()
 
-# ================== SAFETY PAGE ==================
+# Safety Tips
 elif st.session_state.page == "safety":
     rules = [
         "🌤️ Ensure you are well-rested before starting your journey.",
@@ -137,12 +163,13 @@ elif st.session_state.page == "safety":
             st.session_state.page = "main"
             st.rerun()
 
-# ================== MAIN PAGE ==================
-if st.session_state.page == "main":
-    RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+# Main Dashboard
+elif st.session_state.page == "main":
+    RTC_CONFIG = RTCConfiguration({"iceServers":[{"urls":["stun:stun.l.google.com:19302"]}]})
     st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
+    col1, col2, col3 = st.columns([2.5,1.5,1.5])
 
+    # Live Camera
     with col1:
         st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
         webrtc_streamer(
@@ -163,16 +190,18 @@ if st.session_state.page == "main":
         <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
         """, height=230)
 
+    # Status + Emergency
     with col2:
         st.markdown("<div class='card'><h3>🚦 Status</h3></div>", unsafe_allow_html=True)
         if st.session_state.alert:
             st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
         else:
             st.success("✅ DRIVER ALERT")
-        st.markdown("<div style='margin-top:20px;'><button class='emergency' onclick='window.location.reload();'>🚨 Emergency</button></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:20px;'><button class='emergency'>🚨 Emergency</button></div>", unsafe_allow_html=True)
         if st.button("🚨 Emergency Button"):
             trigger_emergency()
 
+    # Weather + Hotels
     with col3:
         st.markdown("<div class='card'><h3>🌦️ Live Weather</h3></div>", unsafe_allow_html=True)
         weather = get_weather()
