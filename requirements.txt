@@ -1,10 +1,9 @@
 streamlit
 streamlit-webrtc
 opencv-python-headless
-numpy
-requests
+tensorflow
 keras
-tensorflow-cpu
-gdown
+numpy
 av
-Pillow
+gdown
+requests
