@@ -26,6 +26,7 @@ st.markdown("""
 .card { background: rgba(255,255,255,0.08); padding:22px; border-radius:20px; backdrop-filter: blur(12px);}
 .alert { color:#ff6b6b; font-size:22px; font-weight:bold; }
 .footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
+button.emergency { background-color:#ff4d4d; color:white; font-size:18px; padding:12px 20px; border-radius:12px; border:none; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -42,11 +43,19 @@ def load_model_data():
 # ================== ALARM CONFIG ==================
 ALARM_FILE = "alarm.wav"
 if not Path(ALARM_FILE).exists():
-    # Replace this with your alarm.wav file Google Drive ID
+    # Replace with your Google Drive ID for alarm.wav
     gdown.download("https://drive.google.com/uc?id=YOUR_ALARM_WAV_FILE_ID", ALARM_FILE, quiet=True)
 
 def play_alarm():
     threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
+
+# ================== FAMILY EMERGENCY CONFIG ==================
+FAMILY_NUMBERS = ["+919876543210", "+919812345678"]  # Example numbers
+def trigger_emergency():
+    st.warning("🚨 Emergency signal sent to family members!")
+    for number in FAMILY_NUMBERS:
+        st.info(f"📞 Calling: {number}")
+    # For demo, just display numbers. Real integration can use Twilio API for calls/SMS.
 
 # ================== DROWSINESS PROCESSOR ==================
 class DrowsinessProcessor(VideoProcessorBase):
@@ -54,8 +63,8 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.model = load_model_data()
         self.eye_closed_start = None
         self.eye_open_start = None
-        self.CLOSED_LIMIT = 60    # 1 minute
-        self.OPEN_LIMIT = 120     # 2 minutes
+        self.CLOSED_LIMIT = 2    # 2 seconds for demo/testing
+        self.OPEN_LIMIT = 2      # 2 seconds eyes open to reset alert
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
@@ -160,10 +169,9 @@ if st.session_state.page == "main":
             st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
         else:
             st.success("✅ DRIVER ALERT")
-        st.markdown("### 🎵 Play a Song")
-        song_file = st.file_uploader("Choose a song (mp3 / wav)", type=["mp3","wav"])
-        if song_file:
-            st.audio(song_file)
+        st.markdown("<div style='margin-top:20px;'><button class='emergency' onclick='window.location.reload();'>🚨 Emergency</button></div>", unsafe_allow_html=True)
+        if st.button("🚨 Emergency Button"):
+            trigger_emergency()
 
     with col3:
         st.markdown("<div class='card'><h3>🌦️ Live Weather</h3></div>", unsafe_allow_html=True)
