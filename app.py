@@ -14,45 +14,18 @@ import threading
 st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
 
 # ================== SESSION INIT ==================
-for key, val in {
-    "page": "welcome",
-    "rule_index": 0,
-    "alert": False,
-}.items():
+for key, val in {"page": "welcome", "rule_index": 0, "alert": False}.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
 # ================== STYLE ==================
 st.markdown("""
 <style>
-.stApp {
- background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000);
- background-size:400% 400%;
- animation:bg 15s ease infinite;
-}
-@keyframes bg {
- 0%{background-position:0% 50%}
- 50%{background-position:100% 50%}
- 100%{background-position:0% 50%}
-}
-.card {
- background: rgba(255,255,255,0.08);
- padding:22px;
- border-radius:20px;
- backdrop-filter: blur(12px);
-}
-.alert {
- color:#ff6b6b;
- font-size:22px;
- font-weight:bold;
-}
-.footer {
- position:fixed;
- bottom:10px;
- right:20px;
- color:#ccc;
- font-size:13px;
-}
+.stApp { background: linear-gradient(-45deg,#141E30,#243B55,#0f2027,#000); background-size:400% 400%; animation:bg 15s ease infinite; }
+@keyframes bg {0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.card { background: rgba(255,255,255,0.08); padding:22px; border-radius:20px; backdrop-filter: blur(12px);}
+.alert { color:#ff6b6b; font-size:22px; font-weight:bold; }
+.footer { position:fixed; bottom:10px; right:20px; color:#ccc; font-size:13px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,11 +39,11 @@ def load_model_data():
         gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=True)
     return load_model(MODEL_PATH)
 
-# ================== ALARM FUNCTION ==================
-ALARM_FILE = "alarm.mp3"
-# Make sure alarm file exists, download if not
+# ================== ALARM CONFIG ==================
+ALARM_FILE = "alarm.wav"
 if not Path(ALARM_FILE).exists():
-    gdown.download("https://drive.google.com/uc?id=1m_AlarmFileID", ALARM_FILE, quiet=True)
+    # Replace this with your alarm.wav file Google Drive ID
+    gdown.download("https://drive.google.com/uc?id=YOUR_ALARM_WAV_FILE_ID", ALARM_FILE, quiet=True)
 
 def play_alarm():
     threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
@@ -81,8 +54,8 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.model = load_model_data()
         self.eye_closed_start = None
         self.eye_open_start = None
-        self.CLOSED_LIMIT = 60    # 1 minute for drowsiness
-        self.OPEN_LIMIT = 120     # 2 minutes to reset alert
+        self.CLOSED_LIMIT = 60    # 1 minute
+        self.OPEN_LIMIT = 120     # 2 minutes
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
@@ -93,37 +66,35 @@ class DrowsinessProcessor(VideoProcessorBase):
         label = "drowsy" if np.argmax(pred) == 1 else "notdrowsy"
         current_time = time.time()
 
-        # Eyes closed → alert
         if label == "drowsy":
             if self.eye_closed_start is None:
                 self.eye_closed_start = current_time
             self.eye_open_start = None
             closed_time = current_time - self.eye_closed_start
-
             if closed_time >= self.CLOSED_LIMIT:
                 if not st.session_state.alert:
                     st.session_state.alert = True
-                    play_alarm()  # Play alarm on alert trigger
-                cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
-                cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
-        # Eyes open → reset
+                    play_alarm()
+                cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
+                cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
         else:
             if self.eye_open_start is None:
                 self.eye_open_start = current_time
             self.eye_closed_start = None
             open_time = current_time - self.eye_open_start
-
             if open_time >= self.OPEN_LIMIT:
                 st.session_state.alert = False
-            cv2.putText(img, "✅ DRIVER ALERT", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
+            cv2.putText(img, "✅ DRIVER ALERT", (30,80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ================== WEATHER FUNCTION ==================
 def get_weather():
     try:
-        latitude = 13.0827
-        longitude = 80.2707
+        latitude, longitude = 13.0827, 80.2707
         url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true"
         data = requests.get(url, timeout=5).json()
         return data.get("current_weather", None)
