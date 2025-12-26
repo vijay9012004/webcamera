@@ -5,16 +5,16 @@ import cv2, os, time, av, requests
 import numpy as np
 from keras.models import load_model
 import gdown
-import streamlit.components.v1 as components
 from pathlib import Path
 from playsound import playsound
 import threading
+import streamlit.components.v1 as components
 
 # ================== PAGE CONFIG ==================
 st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
 
 # ================== SESSION INIT ==================
-for key, val in {"page": "welcome", "rule_index": 0, "alert": False, "drowsy_start": None}.items():
+for key, val in {"page": "welcome", "rule_index": 0, "alert": False}.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
@@ -100,6 +100,7 @@ class DrowsinessProcessor(VideoProcessorBase):
         label = "drowsy" if np.argmax(pred) == 1 else "notdrowsy"
         current_time = time.time()
 
+        # Eye closed logic
         if label == "drowsy":
             if self.eye_closed_start is None:
                 self.eye_closed_start = current_time
@@ -107,22 +108,24 @@ class DrowsinessProcessor(VideoProcessorBase):
             closed_time = current_time - self.eye_closed_start
 
             if closed_time >= self.CLOSED_LIMIT:
-                st.session_state.alert = True
-                play_alarm()
+                if not st.session_state.alert:
+                    st.session_state.alert = True
+                    play_alarm()
+                # Display drowsiness alert only when eyes closed >= 1 minute
                 cv2.putText(img, "🚨 DROWSINESS ALERT!", (30,80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
                 cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
-                st.session_state.drowsy_start = current_time
+        # Eye open logic
         else:
+            self.eye_closed_start = None
             if self.eye_open_start is None:
                 self.eye_open_start = current_time
-            self.eye_closed_start = None
             open_time = current_time - self.eye_open_start
 
             if open_time >= self.OPEN_LIMIT:
                 st.session_state.alert = False
-                st.session_state.drowsy_start = None
+            # No "not drowsy" text—just keep live feed
             cv2.putText(img, "✅ DRIVER ALERT", (30,80),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
 
@@ -198,7 +201,6 @@ elif st.session_state.page == "main":
         st.markdown("<div class='card'><h3>🚦 Status</h3></div>", unsafe_allow_html=True)
         if st.session_state.alert:
             st.markdown("<div class='alert'>🚨 DROWSINESS ALERT!</div>", unsafe_allow_html=True)
-            # Simulated phone notification
             st.info("📱 Sending alert to phone!")
         else:
             st.success("✅ DRIVER ALERT")
