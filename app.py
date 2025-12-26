@@ -6,6 +6,9 @@ import numpy as np
 from keras.models import load_model
 import gdown
 import streamlit.components.v1 as components
+from pathlib import Path
+from playsound import playsound
+import threading
 
 # ================== PAGE CONFIG ==================
 st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
@@ -63,6 +66,15 @@ def load_model_data():
         gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=True)
     return load_model(MODEL_PATH)
 
+# ================== ALARM FUNCTION ==================
+ALARM_FILE = "alarm.mp3"
+# Make sure alarm file exists, download if not
+if not Path(ALARM_FILE).exists():
+    gdown.download("https://drive.google.com/uc?id=1m_AlarmFileID", ALARM_FILE, quiet=True)
+
+def play_alarm():
+    threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
+
 # ================== DROWSINESS PROCESSOR ==================
 class DrowsinessProcessor(VideoProcessorBase):
     def __init__(self):
@@ -74,8 +86,6 @@ class DrowsinessProcessor(VideoProcessorBase):
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
-
-        # Preprocess
         x = cv2.resize(img, (224,224)) / 255.0
         x = np.expand_dims(x, axis=0)
 
@@ -83,24 +93,29 @@ class DrowsinessProcessor(VideoProcessorBase):
         label = "drowsy" if np.argmax(pred) == 1 else "notdrowsy"
         current_time = time.time()
 
+        # Eyes closed → alert
         if label == "drowsy":
             if self.eye_closed_start is None:
                 self.eye_closed_start = current_time
             self.eye_open_start = None
             closed_time = current_time - self.eye_closed_start
+
             if closed_time >= self.CLOSED_LIMIT:
-                st.session_state.alert = True
+                if not st.session_state.alert:
+                    st.session_state.alert = True
+                    play_alarm()  # Play alarm on alert trigger
                 cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
                 cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
+        # Eyes open → reset
         else:
             if self.eye_open_start is None:
                 self.eye_open_start = current_time
             self.eye_closed_start = None
             open_time = current_time - self.eye_open_start
+
             if open_time >= self.OPEN_LIMIT:
                 st.session_state.alert = False
-                cv2.putText(img, "✅ DRIVER ALERT", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
-                cv2.putText(img, f"Eyes Open: {int(open_time)} sec", (30,130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0),2)
+            cv2.putText(img, "✅ DRIVER ALERT", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
