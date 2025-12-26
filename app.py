@@ -3,7 +3,7 @@ import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import cv2, os, time, av, requests
 import numpy as np
-from keras.models import load_model
+from keras.models import load_model  
 import gdown
 from pathlib import Path
 from playsound import playsound
@@ -88,8 +88,8 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.model = load_model_data()
         self.eye_closed_start = None
         self.eye_open_start = None
-        self.CLOSED_LIMIT = 60    # 1 minute
-        self.OPEN_LIMIT = 120     # 2 minutes
+        self.CLOSED_LIMIT = 5    # seconds for testing; use 60 for 1 minute
+        self.OPEN_LIMIT = 3      # seconds for resetting alert
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
@@ -111,11 +111,18 @@ class DrowsinessProcessor(VideoProcessorBase):
                 if not st.session_state.alert:
                     st.session_state.alert = True
                     play_alarm()
-                # Display drowsiness alert only when eyes closed >= 1 minute
+                # Browser alert: update via HTML
+                components.html(f"""
+                <script>
+                document.body.style.backgroundColor='rgba(255,0,0,0.2)';
+                document.getElementById("driver_status").innerText='🚨 DRIVER NOT ALERT';
+                </script>
+                """, height=0)
                 cv2.putText(img, "🚨 DROWSINESS ALERT!", (30,80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
                 cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
+
         # Eye open logic
         else:
             self.eye_closed_start = None
@@ -125,7 +132,13 @@ class DrowsinessProcessor(VideoProcessorBase):
 
             if open_time >= self.OPEN_LIMIT:
                 st.session_state.alert = False
-            # No "not drowsy" text—just keep live feed
+                # Reset browser alert
+                components.html(f"""
+                <script>
+                document.body.style.backgroundColor='';
+                document.getElementById("driver_status").innerText='✅ DRIVER ALERT';
+                </script>
+                """, height=0)
             cv2.putText(img, "✅ DRIVER ALERT", (30,80),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
 
@@ -199,11 +212,10 @@ elif st.session_state.page == "main":
     # Status + Emergency
     with col2:
         st.markdown("<div class='card'><h3>🚦 Status</h3></div>", unsafe_allow_html=True)
+        st.markdown("<h2 id='driver_status'>✅ DRIVER ALERT</h2>", unsafe_allow_html=True)
         if st.session_state.alert:
             st.markdown("<div class='alert'>🚨 DROWSINESS ALERT!</div>", unsafe_allow_html=True)
             st.info("📱 Sending alert to phone!")
-        else:
-            st.success("✅ DRIVER ALERT")
         if st.button("🚨 Emergency Button"):
             trigger_emergency()
 
