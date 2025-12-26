@@ -7,3 +7,4 @@ keras
 gdown
 av
 requests
+playsound
