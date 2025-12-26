@@ -14,7 +14,7 @@ import threading
 st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
 
 # ================== SESSION INIT ==================
-for key, val in {"page": "welcome", "rule_index": 0, "alert": False}.items():
+for key, val in {"page": "welcome", "rule_index": 0, "alert": False, "drowsy_start": None}.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
@@ -76,7 +76,7 @@ def play_alarm():
     threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
 
 # ================== FAMILY EMERGENCY ==================
-FAMILY_NUMBERS = ["+919876543210", "+919812345678"]  # Example
+FAMILY_NUMBERS = ["+919876543210", "+919812345678"]
 def trigger_emergency():
     st.warning("🚨 Emergency signal sent to family members!")
     for number in FAMILY_NUMBERS:
@@ -88,8 +88,8 @@ class DrowsinessProcessor(VideoProcessorBase):
         self.model = load_model_data()
         self.eye_closed_start = None
         self.eye_open_start = None
-        self.CLOSED_LIMIT = 2    # 2 seconds demo
-        self.OPEN_LIMIT = 2
+        self.CLOSED_LIMIT = 60    # 1 minute
+        self.OPEN_LIMIT = 120     # 2 minutes
 
     def recv(self, frame: av.VideoFrame):
         img = frame.to_ndarray(format="bgr24")
@@ -105,21 +105,24 @@ class DrowsinessProcessor(VideoProcessorBase):
                 self.eye_closed_start = current_time
             self.eye_open_start = None
             closed_time = current_time - self.eye_closed_start
+
             if closed_time >= self.CLOSED_LIMIT:
-                if not st.session_state.alert:
-                    st.session_state.alert = True
-                    play_alarm()
-                cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80),
+                st.session_state.alert = True
+                play_alarm()
+                cv2.putText(img, "🚨 DROWSINESS ALERT!", (30,80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
                 cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
+                st.session_state.drowsy_start = current_time
         else:
             if self.eye_open_start is None:
                 self.eye_open_start = current_time
             self.eye_closed_start = None
             open_time = current_time - self.eye_open_start
+
             if open_time >= self.OPEN_LIMIT:
                 st.session_state.alert = False
+                st.session_state.drowsy_start = None
             cv2.putText(img, "✅ DRIVER ALERT", (30,80),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
 
@@ -194,10 +197,11 @@ elif st.session_state.page == "main":
     with col2:
         st.markdown("<div class='card'><h3>🚦 Status</h3></div>", unsafe_allow_html=True)
         if st.session_state.alert:
-            st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
+            st.markdown("<div class='alert'>🚨 DROWSINESS ALERT!</div>", unsafe_allow_html=True)
+            # Simulated phone notification
+            st.info("📱 Sending alert to phone!")
         else:
             st.success("✅ DRIVER ALERT")
-        st.markdown("<div style='margin-top:20px;'><button class='emergency'>🚨 Emergency</button></div>", unsafe_allow_html=True)
         if st.button("🚨 Emergency Button"):
             trigger_emergency()
 
