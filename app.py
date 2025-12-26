@@ -1,4 +1,4 @@
-# ================= IMPORTS ==================
+# ================== IMPORTS ==================
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 import cv2, os, time, av, requests
@@ -57,7 +57,6 @@ st.markdown("""
 if st.session_state.page == "welcome":
     st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;font-size:20px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
-
     if st.button("➡️ Continue"):
         st.session_state.page = "safety"
         st.session_state.rule_index = 0
@@ -95,7 +94,8 @@ def get_weather():
         return None
 
 # ================== MAIN PAGE ==================
-else:
+if st.session_state.page == "main":
+
     FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
     MODEL_PATH = "driver_drowsiness.h5"
     CLASSES = ["notdrowsy", "drowsy"]
@@ -184,7 +184,6 @@ else:
             st.markdown("<div class='alert'>🚨 DROWSINESS DETECTED</div>", unsafe_allow_html=True)
         else:
             st.success("✅ DRIVER ALERT")
-
         st.markdown("### 🎵 Play a Song")
         song_file = st.file_uploader("Choose a song (mp3 / wav)", type=["mp3","wav"])
         if song_file:
