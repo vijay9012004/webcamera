@@ -1,0 +1,15 @@
+from pathlib import Path
+from playsound import playsound
+import threading
+
+ALARM_FILE = "alarm.wav"
+
+# Make sure the alarm file exists (you can download or provide your own)
+if not Path(ALARM_FILE).exists():
+    import gdown
+    # Replace with your Google Drive file ID for alarm.wav
+    gdown.download("https://drive.google.com/uc?id=YOUR_ALARM_WAV_FILE_ID", ALARM_FILE, quiet=True)
+
+# Function to play alarm asynchronously
+def play_alarm():
+    threading.Thread(target=lambda: playsound(ALARM_FILE)).start()
