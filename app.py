@@ -7,7 +7,10 @@ from keras.models import load_model
 import gdown
 import streamlit.components.v1 as components
 
-# ================== SESSION ==================
+# ================== PAGE CONFIG ==================
+st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
+
+# ================== SESSION INIT ==================
 for key, val in {
     "page": "welcome",
     "rule_index": 0,
@@ -15,9 +18,6 @@ for key, val in {
 }.items():
     if key not in st.session_state:
         st.session_state[key] = val
-
-# ================== PAGE CONFIG ==================
-st.set_page_config("Smart Driver Safety System", "🚗", layout="wide")
 
 # ================== STYLE ==================
 st.markdown("""
@@ -53,34 +53,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ================== WELCOME PAGE ==================
-if st.session_state.page == "welcome":
-    st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;font-size:20px;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
-    if st.button("➡️ Continue"):
-        st.session_state.page = "safety"
-        st.session_state.rule_index = 0
-        st.rerun()
+# ================== MODEL CONFIG ==================
+FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
+MODEL_PATH = "driver_drowsiness.h5"
 
-# ================== SAFETY PAGE ==================
-elif st.session_state.page == "safety":
-    rules = [
-        "🌤️ Ensure you are well-rested before starting your journey.",
-        "🕶️ If you feel sleepy, take a short break and relax.",
-        "🚰 Keep yourself hydrated and comfortable while driving.",
-        "📵 Avoid distractions and focus on the road.",
-        "❤️ Safety matters more than reaching early. Drive calmly."
-    ]
-    st.markdown(f"<div class='card'><h3>{rules[st.session_state.rule_index]}</h3></div>", unsafe_allow_html=True)
+@st.cache_resource
+def load_model_data():
+    if not os.path.exists(MODEL_PATH):
+        gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH, quiet=True)
+    return load_model(MODEL_PATH)
 
-    if st.session_state.rule_index < len(rules)-1:
-        if st.button("Next ➡️"):
-            st.session_state.rule_index += 1
-            st.rerun()
-    else:
-        if st.button("🚗 Start Journey"):
-            st.session_state.page = "main"
-            st.rerun()
+# ================== DROWSINESS PROCESSOR ==================
+class DrowsinessProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.model = load_model_data()
+        self.eye_closed_start = None
+        self.eye_open_start = None
+        self.CLOSED_LIMIT = 60    # 1 minute for drowsiness
+        self.OPEN_LIMIT = 120     # 2 minutes to reset alert
+
+    def recv(self, frame: av.VideoFrame):
+        img = frame.to_ndarray(format="bgr24")
+
+        # Preprocess
+        x = cv2.resize(img, (224,224)) / 255.0
+        x = np.expand_dims(x, axis=0)
+
+        pred = self.model.predict(x, verbose=0)
+        label = "drowsy" if np.argmax(pred) == 1 else "notdrowsy"
+        current_time = time.time()
+
+        if label == "drowsy":
+            if self.eye_closed_start is None:
+                self.eye_closed_start = current_time
+            self.eye_open_start = None
+            closed_time = current_time - self.eye_closed_start
+            if closed_time >= self.CLOSED_LIMIT:
+                st.session_state.alert = True
+                cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
+                cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
+        else:
+            if self.eye_open_start is None:
+                self.eye_open_start = current_time
+            self.eye_closed_start = None
+            open_time = current_time - self.eye_open_start
+            if open_time >= self.OPEN_LIMIT:
+                st.session_state.alert = False
+                cv2.putText(img, "✅ DRIVER ALERT", (30,80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
+                cv2.putText(img, f"Eyes Open: {int(open_time)} sec", (30,130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0),2)
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # ================== WEATHER FUNCTION ==================
 def get_weather():
@@ -93,69 +115,38 @@ def get_weather():
     except:
         return None
 
+# ================== WELCOME PAGE ==================
+if st.session_state.page == "welcome":
+    st.markdown("<h1 style='text-align:center;'>🚗 Happy Journey</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Drive safe, arrive happy</p>", unsafe_allow_html=True)
+    if st.button("➡️ Continue"):
+        st.session_state.page = "safety"
+        st.rerun()
+
+# ================== SAFETY PAGE ==================
+elif st.session_state.page == "safety":
+    rules = [
+        "🌤️ Ensure you are well-rested before starting your journey.",
+        "🕶️ If you feel sleepy, take a short break and relax.",
+        "🚰 Keep yourself hydrated and comfortable while driving.",
+        "📵 Avoid distractions and focus on the road.",
+        "❤️ Safety matters more than reaching early. Drive calmly."
+    ]
+    st.markdown(f"<div class='card'><h3>{rules[st.session_state.rule_index]}</h3></div>", unsafe_allow_html=True)
+    if st.session_state.rule_index < len(rules)-1:
+        if st.button("Next ➡️"):
+            st.session_state.rule_index += 1
+            st.rerun()
+    else:
+        if st.button("🚗 Start Journey"):
+            st.session_state.page = "main"
+            st.rerun()
+
 # ================== MAIN PAGE ==================
 if st.session_state.page == "main":
-
-    FILE_ID = "1mhkdGOadbGplRoA1Y-FTiS1yD9rVgcXB"
-    MODEL_PATH = "driver_drowsiness.h5"
-    CLASSES = ["notdrowsy", "drowsy"]
-
-    RTC_CONFIG = RTCConfiguration(
-        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-    )
-
-    @st.cache_resource
-    def load_model_data():
-        if not os.path.exists(MODEL_PATH):
-            gdown.download(f"https://drive.google.com/uc?id={FILE_ID}", MODEL_PATH)
-        return load_model(MODEL_PATH)
-
-    # ================== DROWSINESS PROCESSOR ==================
-    class DrowsinessProcessor(VideoProcessorBase):
-        def __init__(self):
-            self.model = load_model_data()
-            self.eye_closed_start = None
-            self.eye_open_start = None
-            self.CLOSED_LIMIT = 60    # 1 minute
-            self.OPEN_LIMIT = 120     # 2 minutes
-
-        def recv(self, frame: av.VideoFrame):
-            img = frame.to_ndarray(format="bgr24")
-            x = cv2.resize(img, (224,224)) / 255.0
-            x = np.expand_dims(x, axis=0)
-
-            pred = self.model.predict(x, verbose=0)
-            label = CLASSES[np.argmax(pred)]
-            current_time = time.time()
-
-            if label == "drowsy":  # Eyes closed
-                if self.eye_closed_start is None:
-                    self.eye_closed_start = current_time
-                self.eye_open_start = None
-                closed_time = current_time - self.eye_closed_start
-                if closed_time >= self.CLOSED_LIMIT:
-                    st.session_state.alert = True
-                    cv2.putText(img, "🚨 DROWSINESS DETECTED", (30,80),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,0,255),3)
-                    cv2.putText(img, f"Eyes Closed: {int(closed_time)} sec", (30,130),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255),2)
-            else:  # Eyes open
-                if self.eye_open_start is None:
-                    self.eye_open_start = current_time
-                self.eye_closed_start = None
-                open_time = current_time - self.eye_open_start
-                if open_time >= self.OPEN_LIMIT:
-                    st.session_state.alert = False
-                    cv2.putText(img, "✅ DRIVER ALERT", (30,80),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0,255,0),3)
-                    cv2.putText(img, f"Eyes Open: {int(open_time)} sec", (30,130),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0),2)
-
-            return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-    # ================== UI ==================
+    RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
     st.markdown("<h1 style='text-align:center;'>🚗 Smart Driver Safety System</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([2.5,1.5,1.5])
+    col1, col2, col3 = st.columns([2.5, 1.5, 1.5])
 
     with col1:
         st.markdown("<div class='card'><h3>🎥 Live Camera</h3></div>", unsafe_allow_html=True)
@@ -170,12 +161,11 @@ if st.session_state.page == "main":
         components.html("""
         <script>
         navigator.geolocation.watchPosition(p=>{
-        document.getElementById("map").src=
-        `https://maps.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}&z=15&output=embed`;
+            document.getElementById("map").src=
+            `https://maps.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}&z=15&output=embed`;
         });
         </script>
-        <iframe id="map" width="100%" height="220"
-        style="border-radius:12px;border:0;"></iframe>
+        <iframe id="map" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
         """, height=230)
 
     with col2:
@@ -197,17 +187,15 @@ if st.session_state.page == "main":
             st.write(f"💨 Wind Speed: {weather['windspeed']} km/h")
         else:
             st.warning("Weather unavailable")
-
         st.markdown("<div class='card'><h3>🏨 Hotels Near Me</h3></div>", unsafe_allow_html=True)
         components.html("""
         <script>
         navigator.geolocation.getCurrentPosition(p=>{
-        document.getElementById("hotelmap").src=
-        `https://maps.google.com/maps?q=hotels+near+${p.coords.latitude},${p.coords.longitude}&z=14&output=embed`;
+            document.getElementById("hotelmap").src=
+            `https://maps.google.com/maps?q=hotels+near+${p.coords.latitude},${p.coords.longitude}&z=14&output=embed`;
         });
         </script>
-        <iframe id="hotelmap" width="100%" height="220"
-        style="border-radius:12px;border:0;"></iframe>
+        <iframe id="hotelmap" width="100%" height="220" style="border-radius:12px;border:0;"></iframe>
         """, height=230)
 
     st.markdown("<div class='footer'>TACK TECHNO PRESENTS</div>", unsafe_allow_html=True)
